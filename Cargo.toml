@@ -6,4 +6,6 @@ edition = "2021"
 publish = false
 
 [dependencies]
-serialport = "4.4.0"
+anyhow = "1.0.86"
+tokio = { version = "1.38.0", features = ["full"] }
+tokio-serial = "5.4.4"
