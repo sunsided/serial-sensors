@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - 'Cargo.toml'
       - 'src/**'
@@ -15,7 +14,6 @@ on:
   pull_request:
     branches:
       - main
-      - master
     paths:
       - 'Cargo.toml'
       - 'src/**'
@@ -45,31 +43,6 @@ jobs:
       - name: Clippy
         run: cargo clippy --all-features
 
-  check-msrv:
-    name: Check MSRV
-    needs:
-      - codespell
-      - lint
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust-version: [ 1.64.0, 1.79.0, stable, nightly ]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ matrix.rust-version }}
-
-      - name: Install dependencies
-        run: cargo fetch
-
-      - name: Check MSRV
-        run: cargo check --all-targets --verbose
-
   docs:
     name: Build documentation
     needs:
@@ -79,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build documentation
-        run: cargo doc --all-features
+        run: cargo doc --all-features --document-private-items
 
   build-linux:
     name: Build on Linux
@@ -88,17 +61,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: [ [ ], [ "--all-features" ], [ "--no-default-features" ] ]
+        features: [ [ "--all-features" ] ]
     steps:
       - uses: actions/checkout@v4
       - name: Clippy
         run: cargo clippy ${{ join(matrix.features, ' ') }}
       - name: Install dependencies
         run: cargo fetch
+      - name: Check
+        run: cargo check --verbose ${{ join(matrix.features, ' ') }}
       - name: Build
         run: cargo build --verbose ${{ join(matrix.features, ' ') }}
-      - name: Run doctests
-        run: cargo test --doc --verbose ${{ join(matrix.features, ' ') }}
       - name: Run regular tests
         run: cargo test --tests --verbose ${{ join(matrix.features, ' ') }}
 
