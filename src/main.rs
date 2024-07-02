@@ -1,11 +1,16 @@
-use std::ops::Deref;
+extern crate core;
 use std::sync::Arc;
 use std::time::Duration;
 
-use array_pool::pool::{ArrayPool, BorrowingSlice};
+use array_pool::pool::ArrayPool;
+use corncobs::CobsError;
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
+
+use crate::packet::DataSlice;
+
+mod packet;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
         .open_native_async()
         .expect("Failed to open port");
 
-    let (from_device, mut receiver) = unbounded_channel::<Packet>();
+    let (from_device, mut receiver) = unbounded_channel::<DataSlice>();
     let (command, to_device) = unbounded_channel::<String>();
 
     // Pool for sharing data
@@ -36,9 +41,23 @@ async fn main() -> anyhow::Result<()> {
 
     // Main loop for printing input from the serial line.
     loop {
-        if let Some(data) = receiver.recv().await {
-            let data = String::from_utf8_lossy(&data).into_owned();
-            print!("{}", data);
+        if let Some(mut data) = receiver.recv().await {
+            match corncobs::decode_in_place(&mut data) {
+                Ok(decoded_length) => {
+                    let data = String::from_utf8_lossy(&data[..decoded_length]);
+                    println!("Received data: {:?}", data);
+                }
+                Err(e) => {
+                    match e {
+                        CobsError::Truncated => {
+                            // ignored; this is a synchronization issue
+                        }
+                        CobsError::Corrupt => {
+                            // ignored
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -58,7 +77,7 @@ async fn handle_std_input(command: UnboundedSender<String>) {
 
 async fn handle_data_recv(
     mut port: SerialStream,
-    from_device: UnboundedSender<Packet>,
+    from_device: UnboundedSender<DataSlice>,
     mut to_device: UnboundedReceiver<String>,
     pool: Arc<ArrayPool<u8>>,
 ) -> anyhow::Result<()> {
@@ -76,37 +95,12 @@ async fn handle_data_recv(
                     if bytes_read > 0 {
                         let mut slice = pool.rent(bytes_read).map_err(|_| anyhow::Error::msg("failed to borrow from pool"))?;
                         slice[..bytes_read].copy_from_slice(&buf[..bytes_read]);
-                        from_device.send(Packet::new(slice, bytes_read))?;
+                        from_device.send(DataSlice::new(slice, bytes_read))?;
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
                 Err(e) => eprintln!("{:?}", e),
             }
         }
-    }
-}
-
-struct Packet {
-    buffer: BorrowingSlice<u8>,
-    size: usize,
-}
-
-impl Packet {
-    pub fn new(buffer: BorrowingSlice<u8>, size: usize) -> Self {
-        Self { buffer, size }
-    }
-}
-
-impl AsRef<[u8]> for Packet {
-    fn as_ref(&self) -> &[u8] {
-        &self.buffer[..self.size]
-    }
-}
-
-impl Deref for Packet {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
     }
 }
