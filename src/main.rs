@@ -1,4 +1,5 @@
 use std::time::Duration;
+
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
@@ -55,21 +56,23 @@ async fn handle_data_recv(
 ) -> anyhow::Result<()> {
     let mut buf: Vec<u8> = vec![0; 1024];
     loop {
-        // Send data when serial_out has a message
-        if let Ok(command) = serial_out.try_recv() {
-            port.write_all(command.as_bytes()).await?;
-        }
-
-        match port.read(&mut buf).await {
-            Ok(bytes_read) => {
-                if bytes_read > 0 {
-                    let data = String::from_utf8_lossy(&buf[..bytes_read]).into_owned();
-                    serial_in.send(data)?;
-                    io::stdout().flush().await?;
-                }
+        tokio::select! {
+            // Send data when serial_out has a message
+            Some(command) = serial_out.recv() => {
+                port.write_all(command.as_bytes()).await?;
             }
-            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
-            Err(e) => eprintln!("{:?}", e),
+
+            // Read data from the serial port
+            result = port.read(&mut buf) => match result {
+                Ok(bytes_read) => {
+                    if bytes_read > 0 {
+                        let data = String::from_utf8_lossy(&buf[..bytes_read]).into_owned();
+                        serial_in.send(data)?;
+                    }
+                }
+                Err(ref e) if e.kind() == io::ErrorKind::TimedOut => (),
+                Err(e) => eprintln!("{:?}", e),
+            }
         }
     }
 }
