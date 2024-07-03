@@ -8,3 +8,4 @@ temperature, etc.
 I'm currently using it for these projects:
 
 * [`stm32f3disco-rust`](https://github.com/sunsided/stm32f3disco-rust)
+  via [`serial-sensors-proto`](https://github.com/sunsided/serial-sensors-proto).
