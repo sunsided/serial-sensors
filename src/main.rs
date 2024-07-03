@@ -1,6 +1,8 @@
 extern crate core;
 use std::time::Duration;
 
+use rand_distr::{Distribution, Normal};
+use rtplot::{Figure, PlotType};
 use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -23,6 +25,25 @@ async fn main() -> anyhow::Result<()> {
 
     let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
     let (command, to_device) = unbounded_channel::<String>();
+
+    let mut figure = Figure::new(100)
+        .ylim([-1.0, 1.0])
+        .xlabel("Time (s)")
+        .ylabel("Amplitude")
+        .plot_type(PlotType::Line)
+        .color(0x80, 0x00, 0x80);
+
+    let normal = Normal::new(0.0, 1.0).unwrap();
+    let mut rng = rand::thread_rng();
+
+    Figure::display(&mut figure, |fig| {
+        let v: Vec<f32> = normal
+            .sample_iter(&mut rng)
+            .take(10)
+            .map(|x| x as f32)
+            .collect();
+        fig.plot_stream(&v);
+    });
 
     // Spawn a thread for reading data from the serial port
     let cdc_handle = tokio::spawn(handle_data_recv(port, from_device, to_device));
