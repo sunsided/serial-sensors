@@ -1,7 +1,7 @@
 extern crate core;
 use std::time::Duration;
 
-use serial_sensors_proto::{deserialize, DeserializationError};
+use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
@@ -76,12 +76,32 @@ async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
                     let first_nonzero = buffer.iter().position(|&x| x != 0).unwrap_or(buffer.len());
                     buffer.drain(0..first_nonzero);
 
-                    println!(
-                        "Received data: {}, {}.{}",
+                    print!(
+                        "In: {}, {}:{} {:02X}:{:02X} ",
                         frame.data.global_sequence,
                         frame.data.sensor_tag,
-                        frame.data.sensor_sequence
+                        frame.data.sensor_sequence,
+                        frame.data.value.sensor_type_id(),
+                        frame.data.value.value_type() as u8,
                     );
+
+                    match frame.data.value {
+                        SensorData::AccelerometerI16(vec) => {
+                            println!(
+                                "acc = ({}, {}, {})",
+                                vec.x as f32 / 16384.0,
+                                vec.y as f32 / 16384.0,
+                                vec.z as f32 / 16384.0
+                            )
+                        }
+                        SensorData::MagnetometerI16(vec) => {
+                            println!("mag = ({}, {}, {})", vec.x, vec.y, vec.z)
+                        }
+                        SensorData::TemperatureI16(value) => {
+                            println!("temp = {} °C", value.value as f32 / 8.0 + 20.0)
+                        }
+                        other => eprintln!("{other:?}"),
+                    }
                 }
                 Err(e) => {
                     match e {
@@ -95,6 +115,7 @@ async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
                         }
                         DeserializationError::BincodeError(e) => {
                             eprintln!("Binary coding error: {e}");
+                            buffer.clear();
                         }
                     }
                 }
