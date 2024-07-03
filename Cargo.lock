@@ -150,6 +150,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ensure-uniform-type"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b023480f5b45e94a472761e1fc588781906fa30b9fe2b1da79c1dfd583e03bd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -317,6 +328,12 @@ checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "micromath"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3c8dda44ff03a2f238717214da50f65d5a53b45cd213a7370424ffdb6fae815"
 
 [[package]]
 name = "miniz_oxide"
@@ -521,20 +538,22 @@ dependencies = [
 
 [[package]]
 name = "serial-sensors-proto"
-version = "0.1.0-alpha.6"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6e7c13e863d26468ed1ffff25779b9ad3bf01ccfbe6bf09125ba94d1e243d31"
+checksum = "9779f495f46419fdc511a311531f2ef124607a771287da0639693751bf2d5ec1"
 dependencies = [
  "bincode",
  "corncobs",
+ "micromath",
  "serial-sensors-proto-derive",
+ "uniform-array-derive",
 ]
 
 [[package]]
 name = "serial-sensors-proto-derive"
-version = "0.1.0-alpha.6"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e499602edde81c7112d02107d50ac11cb171434f17b7cb3ed5cb14bb33b54773"
+checksum = "5a576f7f8687860ad9eb0ab45e0d3fb43e6aea25dace696c853c7cf74eee8906"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -688,6 +707,19 @@ name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "uniform-array-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d73bf07083588f2836c190e0bff6a99607f5931fa173167666601adb53f0ccd1"
+dependencies = [
+ "darling",
+ "ensure-uniform-type",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "virtue"
