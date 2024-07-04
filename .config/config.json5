@@ -1,18 +1,3 @@
 {
-  "keybindings": {
-    "Home": {
-      "<j>": "ScheduleIncrement",
-      "<k>": "ScheduleDecrement",
-      "<l>": "ToggleShowHelp",
-      "</>": "EnterInsert",
-      // Quit the application
-      "<q>": "Quit",
-      // Another way to quit
-      "<Ctrl-d>": "Quit",
-      // Yet another way to quit
-      "<Ctrl-c>": "Quit",
-      // Suspend the application
-      "<Ctrl-z>": "Suspend"
-    },
-  }
+  // might make sense to use it.
 }

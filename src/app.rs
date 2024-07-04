@@ -31,7 +31,6 @@ pub struct App {
     pub components: Vec<Box<dyn Component>>,
     pub should_quit: bool,
     pub should_suspend: bool,
-    pub mode: Mode,
     pub last_tick_key_events: Vec<KeyEvent>,
 }
 
@@ -41,7 +40,6 @@ impl App {
         let streaming = StreamingLog::new(receiver.clone());
         let fps = FpsDisplay::new(receiver);
         let config = Config::new()?;
-        let mode = Mode::Home;
 
         Ok(Self {
             tick_rate,
@@ -50,7 +48,6 @@ impl App {
             should_quit: false,
             should_suspend: false,
             config,
-            mode,
             last_tick_key_events: Vec::new(),
         })
     }
@@ -82,7 +79,8 @@ impl App {
                     tui::Event::Tick => action_tx.send(Action::Tick)?,
                     tui::Event::Render => action_tx.send(Action::Render)?,
                     tui::Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
-                    tui::Event::Key(key) => {
+                    tui::Event::Key(_key) => {
+                        /*
                         if let Some(keymap) = self.config.keybindings.get(&self.mode) {
                             if let Some(action) = keymap.get(&vec![key]) {
                                 log::info!("Got action: {action:?}");
@@ -99,6 +97,7 @@ impl App {
                                 }
                             }
                         };
+                        */
                     }
                     _ => {}
                 }
