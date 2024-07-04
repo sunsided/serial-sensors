@@ -7,8 +7,6 @@ use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use num_traits::ConstZero;
 use ratatui::{prelude::*, widgets::*};
-use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::SensorData;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -19,16 +17,13 @@ use super::{Component, Frame};
 pub struct Sensors {
     action_tx: Option<UnboundedSender<Action>>,
     receiver: Arc<SensorDataBuffer>,
-    recent: Vec<Version1DataFrame>,
 }
 
 impl Sensors {
     pub fn new(receiver: Arc<SensorDataBuffer>) -> Self {
-        let capacity = receiver.capacity().min(60);
         Self {
             action_tx: None,
             receiver,
-            recent: Vec::with_capacity(capacity),
         }
     }
 }
@@ -53,22 +48,20 @@ impl Component for Sensors {
             .constraints([Constraint::Length(10)].as_ref())
             .split(rect);
 
-        // Fetch the actual height of the window.
-        let height = rects[0].height;
+        // Get all sensor types.
+        let sensors = self.receiver.get_sensors();
 
-        // Obtain the most recent data.
-        self.recent.clear();
-        let capacity = height as usize;
-        let len = self.receiver.clone_latest(capacity, &mut self.recent);
-
-        let log_rows: Vec<Line> = self.recent[..len]
-            .iter()
-            .rev()
-            .map(|frame| {
-                let mut line = vec![
-                    Span::styled(frame.global_sequence.to_string(), Style::default().dim()),
-                    ", ".into(),
-                    Span::styled(frame.sensor_tag.to_string(), Style::default().yellow()),
+        let rows: Vec<Line> = sensors
+            .into_iter()
+            .map(|id| (id.clone(), self.receiver.get_latest_by_sensor(id)))
+            .filter(|(_, frame)| frame.is_some())
+            .map(|(id, frame)| (id, frame.expect("value exists")))
+            .enumerate()
+            .map(|(no, (id, frame))| {
+                vec![
+                    Span::styled(format!("{no}"), Style::default()),
+                    ": ".into(),
+                    Span::styled(id.tag().to_string(), Style::default().yellow()),
                     ":".into(),
                     Span::styled(frame.sensor_sequence.to_string(), Style::default().dim()),
                     " ".into(),
@@ -82,51 +75,13 @@ impl Component for Sensors {
                         Style::default().dim(),
                     ),
                     " ".into(),
-                ];
-
-                if let SensorData::AccelerometerI16(vec) = frame.value {
-                    let (highlight_x, highlight_y, highlight_z) =
-                        highlight_axis_3(vec.x, vec.y, vec.z);
-
-                    line.extend(vec![
-                        Span::styled("acc", Style::default().cyan()),
-                        "  = (".into(),
-                        axis_to_span(vec.x as f32 / 16384.0, highlight_x), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.y as f32 / 16384.0, highlight_y), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.z as f32 / 16384.0, highlight_z), // TODO: Don't assume normalization
-                        ")".into(),
-                    ]);
-                } else if let SensorData::MagnetometerI16(vec) = frame.value {
-                    let (highlight_x, highlight_y, highlight_z) =
-                        highlight_axis_3(vec.x, vec.y, vec.z);
-
-                    line.extend(vec![
-                        Span::styled("mag", Style::default().cyan()),
-                        "  = (".into(),
-                        axis_to_span(vec.x as f32 / 1100.0, highlight_x), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.y as f32 / 1100.0, highlight_y), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.z as f32 / 1100.0, highlight_z), // TODO: Don't assume normalization
-                        ")".into(),
-                    ]);
-                } else if let SensorData::TemperatureI16(value) = frame.value {
-                    line.extend(vec![
-                        Span::styled("temp", Style::default().cyan()),
-                        " = ".into(),
-                        axis_to_span(value.value as f32 / 8.0 + 20.0, false), // TODO: Don't assume normalization
-                        "°C".into(),
-                    ]);
-                }
-
-                Line::from(line)
+                ]
             })
+            .map(|lines| lines.into())
             .collect();
 
         f.render_widget(
-            Paragraph::new(log_rows)
+            Paragraph::new(rows)
                 .left_aligned()
                 .block(
                     Block::default()
@@ -143,6 +98,7 @@ impl Component for Sensors {
     }
 }
 
+#[allow(dead_code)]
 fn axis_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
 where
     V: Display + 'a,
@@ -155,6 +111,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 fn highlight_axis_3<T>(x: T, y: T, z: T) -> (bool, bool, bool)
 where
     T: PartialOrd + ConstZero + Neg<Output = T>,

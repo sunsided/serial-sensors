@@ -86,6 +86,16 @@ impl SensorDataBuffer {
     pub fn average_duration(&self) -> Duration {
         self.inner.fps.average_duration()
     }
+
+    pub fn get_sensors(&self) -> Vec<SensorId> {
+        let map = self.by_sensor.read().expect("failed to lock");
+        map.keys().cloned().collect()
+    }
+
+    pub fn get_latest_by_sensor(&self, id: SensorId) -> Option<Version1DataFrame> {
+        let map = self.by_sensor.read().expect("failed to lock");
+        map.get(&id).and_then(|entry| entry.get_latest())
+    }
 }
 
 impl InnerSensorDataBuffer {
@@ -119,5 +129,11 @@ impl InnerSensorDataBuffer {
     #[allow(dead_code)]
     pub fn average_duration(&self) -> Duration {
         self.fps.average_duration()
+    }
+
+    /// Gets the latest record.
+    pub fn get_latest(&self) -> Option<Version1DataFrame> {
+        let data = self.data.read().expect("lock failed");
+        data.front().cloned()
     }
 }
