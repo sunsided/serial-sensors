@@ -1,13 +1,14 @@
 extern crate core;
 use std::time::Duration;
 
-use ratatui::crossterm;
+use ratatui::crossterm::{event, ExecutableCommand, execute};
 use ratatui::crossterm::event::{DisableMouseCapture, Event, KeyCode};
-use ratatui::crossterm::terminal::LeaveAlternateScreen;
-use ratatui::crossterm::{event, execute, terminal};
+use ratatui::crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, List, ListItem, Paragraph};
-use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
+use serial_sensors_proto::{DeserializationError, deserialize, SensorData};
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_serial::SerialStream;
@@ -18,9 +19,12 @@ const BAUD_RATE: u32 = 1_000_000;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Setup terminal
-    let stdout = std::io::stdout();
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let mut stdout = std::io::stdout();
+    stdout.execute(EnterAlternateScreen)?;
+    enable_raw_mode()?;
+
+    let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
+    terminal.clear()?;
 
     loop {
         terminal.draw(|f| {
@@ -76,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
             f.render_widget(data_chart, chunks[2]);
         })?;
 
-        if crossterm::event::poll(Duration::from_millis(100))? {
+        if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.code == KeyCode::Char('q') {
                     break;
@@ -85,12 +89,12 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    terminal::disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
     )?;
+    disable_raw_mode()?;
     terminal.show_cursor()?;
 
     /*
