@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
 use crossterm::event::{KeyEvent, MouseEvent};
-use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::Frame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, config::Config, tui::Event};

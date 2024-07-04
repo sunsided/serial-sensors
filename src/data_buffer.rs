@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::RwLock;
 use std::time::Duration;
 
-use serial_sensors_proto::SensorId;
 use serial_sensors_proto::versions::Version1DataFrame;
+use serial_sensors_proto::SensorId;
 
 use crate::fps_counter::FpsCounter;
 

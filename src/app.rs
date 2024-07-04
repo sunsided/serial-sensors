@@ -5,20 +5,20 @@ use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use serial_sensors_proto::types::AccelerometerI16;
-use serial_sensors_proto::Vector3Data;
 use serial_sensors_proto::versions::Version1DataFrame;
+use serial_sensors_proto::Vector3Data;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::{
-    action::Action,
-    components::{Component, fps::FpsDisplay},
-    config::Config,
-    tui,
-};
 use crate::components::streaming::StreamingLog;
 use crate::data_buffer::SensorDataBuffer;
 use crate::tui::Tui;
+use crate::{
+    action::Action,
+    components::{fps::FpsDisplay, Component},
+    config::Config,
+    tui,
+};
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Mode {

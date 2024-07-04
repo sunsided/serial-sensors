@@ -4,8 +4,8 @@ use std::sync::Arc;
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
-use serial_sensors_proto::SensorData;
 use serial_sensors_proto::versions::Version1DataFrame;
+use serial_sensors_proto::SensorData;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -64,29 +64,48 @@ impl Component for StreamingLog {
             .iter()
             .rev()
             .map(|frame| {
-                let header = format!(
-                    "{}, {}:{} {:02X}:{:02X} ",
-                    frame.global_sequence,
-                    frame.sensor_tag,
-                    frame.sensor_sequence,
-                    frame.value.sensor_type_id(),
-                    frame.value.value_type() as u8,
-                );
+                let mut line = vec![
+                    Span::styled(frame.global_sequence.to_string(), Style::default().dim()),
+                    ", ".into(),
+                    Span::styled(frame.sensor_tag.to_string(), Style::default().yellow()),
+                    ":".into(),
+                    Span::styled(frame.sensor_sequence.to_string(), Style::default().dim()),
+                    " ".into(),
+                    Span::styled(
+                        format!("{:02X}", frame.value.sensor_type_id()),
+                        Style::default().dim(),
+                    ),
+                    ":".into(),
+                    Span::styled(
+                        format!("{:02X}", frame.value.value_type() as u8),
+                        Style::default().dim(),
+                    ),
+                    " ".into(),
+                ];
 
-                let payload = if let SensorData::AccelerometerI16(vec) = frame.value {
-                    format!(
-                        "acc = ({:.04}, {:.04}, {:.04})",
-                        vec.x as f32 / 16384.0,
-                        vec.y as f32 / 16384.0,
-                        vec.z as f32 / 16384.0
-                    )
-                } else {
-                    String::new()
-                };
+                if let SensorData::AccelerometerI16(vec) = frame.value {
+                    line.extend(vec![
+                        Span::styled("acc", Style::default().cyan()),
+                        " = (".into(),
+                        Span::styled(
+                            (vec.x as f32 / 16384.0).to_string(),
+                            Style::default().white(),
+                        ),
+                        ", ".into(),
+                        Span::styled(
+                            (vec.y as f32 / 16384.0).to_string(),
+                            Style::default().white(),
+                        ),
+                        ", ".into(),
+                        Span::styled(
+                            (vec.z as f32 / 16384.0).to_string(),
+                            Style::default().white(),
+                        ),
+                        ")".into(),
+                    ]);
+                }
 
-                let l = format!("{header} {payload}");
-
-                Line::from(l)
+                Line::from(line)
             })
             .collect();
 
