@@ -1,18 +1,101 @@
 extern crate core;
 use std::time::Duration;
 
+use ratatui::crossterm;
+use ratatui::crossterm::event::{DisableMouseCapture, Event, KeyCode};
+use ratatui::crossterm::terminal::LeaveAlternateScreen;
+use ratatui::crossterm::{event, execute, terminal};
+use ratatui::prelude::*;
+use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, List, ListItem, Paragraph};
 use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio_serial::SerialStream;
+
+const PORT_NAME: &str = "/dev/ttyACM1";
+const BAUD_RATE: u32 = 1_000_000;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let port_name = "/dev/ttyACM0";
-    let baud_rate = 1_000_000;
+    // Setup terminal
+    let stdout = std::io::stdout();
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
+    loop {
+        terminal.draw(|f| {
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints(
+                    [
+                        Constraint::Percentage(20),
+                        Constraint::Percentage(30),
+                        Constraint::Percentage(50),
+                    ]
+                    .as_ref(),
+                )
+                .split(f.size());
+
+            /*
+            let sensor_data = sensor_data.lock().unwrap();
+            let sensor_rows: Vec<ListItem> = sensor_data
+                .iter()
+                .map(|d| ListItem::new(Spans::from(vec![d.clone()])))
+                .collect();
+            */
+
+            let sensor_rows = [ListItem::new(Span::from("sensor data 1"))];
+            let sensor_list = List::new(sensor_rows)
+                .block(Block::default().borders(Borders::ALL).title("Sensor Data"));
+            f.render_widget(sensor_list, chunks[0]);
+
+            // let streaming_data = streaming_data.lock().unwrap();
+
+            let streaming_data = ["a lot of text", "really"];
+            let streaming_paragraph = Paragraph::new(streaming_data.join("\n")).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Streaming Data"),
+            );
+            f.render_widget(streaming_paragraph, chunks[1]);
+
+            let data_points = [(1.234, 4.567)];
+
+            let datasets = vec![Dataset::default()
+                .name("data 1")
+                .marker(symbols::Marker::Dot)
+                .graph_type(GraphType::Scatter)
+                .style(Style::default().cyan())
+                .data(&data_points)];
+
+            let data_chart = Chart::new(datasets)
+                .block(Block::default().borders(Borders::ALL).title("Data Chart"))
+                .x_axis(ratatui::widgets::Axis::default().bounds([0.0, 10.0]))
+                .y_axis(ratatui::widgets::Axis::default().bounds([0.0, 100.0]));
+            f.render_widget(data_chart, chunks[2]);
+        })?;
+
+        if crossterm::event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                if key.code == KeyCode::Char('q') {
+                    break;
+                }
+            }
+        }
+    }
+
+    terminal::disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+    /*
     // Open the serial port
-    let port = tokio_serial::new(port_name, baud_rate)
+    let port = tokio_serial::new(PORT_NAME, BAUD_RATE)
         .data_bits(DataBits::Eight)
         .flow_control(FlowControl::None)
         .parity(Parity::None)
@@ -55,6 +138,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     };
+    */
 
     Ok(())
 }
@@ -88,7 +172,7 @@ async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
                     match frame.data.value {
                         SensorData::AccelerometerI16(vec) => {
                             println!(
-                                "acc = ({}, {}, {})",
+                                "acc = ({:.04}, {:.04}, {:.04})",
                                 vec.x as f32 / 16384.0,
                                 vec.y as f32 / 16384.0,
                                 vec.z as f32 / 16384.0
