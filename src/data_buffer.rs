@@ -5,7 +5,7 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::SensorId;
+use serial_sensors_proto::{SensorData, SensorId};
 
 use crate::fps_counter::FpsCounter;
 
@@ -17,6 +17,7 @@ pub struct SensorDataBuffer {
 
 #[derive(Debug)]
 struct InnerSensorDataBuffer {
+    sensor_specific: bool,
     capacity: usize,
     data: RwLock<VecDeque<Version1DataFrame>>,
     len: AtomicUsize,
@@ -28,8 +29,17 @@ struct InnerSensorDataBuffer {
 impl Default for SensorDataBuffer {
     fn default() -> Self {
         Self {
-            inner: Default::default(),
+            inner: InnerSensorDataBuffer::new(false),
             by_sensor: RwLock::new(HashMap::default()),
+        }
+    }
+}
+
+impl InnerSensorDataBuffer {
+    fn new(sensor_specific: bool) -> Self {
+        Self {
+            sensor_specific,
+            ..Default::default()
         }
     }
 }
@@ -38,6 +48,7 @@ impl Default for InnerSensorDataBuffer {
     fn default() -> Self {
         let capacity = 100;
         Self {
+            sensor_specific: true,
             capacity,
             data: RwLock::new(VecDeque::with_capacity(capacity)),
             len: AtomicUsize::new(0),
@@ -124,6 +135,14 @@ impl InnerSensorDataBuffer {
     }
 
     pub fn enqueue(&self, frame: Version1DataFrame) {
+        // Sensor-specific buffers do not care about identification frames.
+        if self.sensor_specific {
+            if let SensorData::Identification(_ident) = &frame.value {
+                // Nothing to do here.
+                return;
+            };
+        }
+
         let mut data = self.data.write().expect("lock failed");
 
         let previous = self.sequence.swap(frame.sensor_sequence, Ordering::SeqCst);
