@@ -4,7 +4,7 @@ use std::ops::Neg;
 use num_traits::ConstZero;
 use ratatui::prelude::*;
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{IdentifierCode, SensorData, SensorId, Vector3Data};
+use serial_sensors_proto::{IdentifierCode, ScalarData, SensorData, SensorId, Vector3Data};
 
 use crate::data_buffer::SensorDataBuffer;
 
@@ -78,12 +78,8 @@ pub fn frame_data_to_line(
             line.extend(format_vec3(id, receiver, vec, "mag"));
         }
         SensorData::TemperatureI16(value) => {
-            line.extend(vec![
-                Span::styled("temp", Style::default().cyan()),
-                " = ".into(),
-                axis_to_span(value.value as f32 / 8.0 + 20.0, false), // TODO: Don't assume normalization
-                "°C".into(),
-            ]);
+            line.extend(format_scalar(id, receiver, value, "temp"));
+            line.push("°C".into());
         }
         _ => {}
     }
@@ -117,6 +113,31 @@ where
         ", ".into(),
         axis_to_span(values[2], highlight_z),
         ")".into(),
+    ]
+}
+
+fn format_scalar<'a, D>(
+    id: &SensorId,
+    receiver: &SensorDataBuffer,
+    data: D,
+    name: &'a str,
+) -> Vec<Span<'a>>
+where
+    D: Into<ScalarData<i16>>,
+{
+    let scalar = data.into();
+
+    let mut values = [scalar.value as f32];
+    let transformed = if receiver.transform_values(id, &mut values) {
+        Style::default().green()
+    } else {
+        Style::default().cyan()
+    };
+
+    vec![
+        Span::styled(name, transformed),
+        " = ".into(),
+        axis_to_span(values[0], false),
     ]
 }
 
