@@ -8,7 +8,7 @@ use serial_sensors_proto::types::AccelerometerI16;
 use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::Vector3Data;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::components::streaming::StreamingLog;
 use crate::data_buffer::SensorDataBuffer;

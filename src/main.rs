@@ -5,11 +5,9 @@ use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
-use ratatui::crossterm::ExecutableCommand;
-use ratatui::prelude::*;
-use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
-use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+pub use ratatui::prelude::*;
+use serial_sensors_proto::{deserialize, DeserializationError};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
@@ -102,71 +100,6 @@ async fn decoder(
                         }
                         DeserializationError::BincodeError(e) => {
                             log::error!("Binary coding error detected: {e}");
-                            buffer.clear();
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-async fn process_terminal(mut receiver: UnboundedReceiver<Vec<u8>>) {
-    // Main loop for printing input from the serial line.
-    let mut buffer = Vec::with_capacity(1024);
-    loop {
-        if let Some(data) = receiver.recv().await {
-            // Double buffer the data because we may need to restart reading.
-            buffer.extend_from_slice(&data);
-
-            match deserialize(&mut buffer) {
-                Ok((read, frame)) => {
-                    // Remove all ready bytes.
-                    buffer.drain(0..read);
-
-                    // Ensure that we don't keep delimiter bytes in the buffer.
-                    let first_nonzero = buffer.iter().position(|&x| x != 0).unwrap_or(buffer.len());
-                    buffer.drain(0..first_nonzero);
-
-                    print!(
-                        "In: {}, {}:{} {:02X}:{:02X} ",
-                        frame.data.global_sequence,
-                        frame.data.sensor_tag,
-                        frame.data.sensor_sequence,
-                        frame.data.value.sensor_type_id(),
-                        frame.data.value.value_type() as u8,
-                    );
-
-                    match frame.data.value {
-                        SensorData::AccelerometerI16(vec) => {
-                            println!(
-                                "acc = ({:.04}, {:.04}, {:.04})",
-                                vec.x as f32 / 16384.0,
-                                vec.y as f32 / 16384.0,
-                                vec.z as f32 / 16384.0
-                            )
-                        }
-                        SensorData::MagnetometerI16(vec) => {
-                            println!("mag = ({}, {}, {})", vec.x, vec.y, vec.z)
-                        }
-                        SensorData::TemperatureI16(value) => {
-                            println!("temp = {} °C", value.value as f32 / 8.0 + 20.0)
-                        }
-                        other => eprintln!("{other:?}"),
-                    }
-                }
-                Err(e) => {
-                    match e {
-                        DeserializationError::Truncated => {
-                            // ignored; this is a synchronization issue
-                            eprintln!("truncated");
-                        }
-                        DeserializationError::Corrupt => {
-                            // ignored
-                            eprintln!("corrupt");
-                        }
-                        DeserializationError::BincodeError(e) => {
-                            eprintln!("Binary coding error: {e}");
                             buffer.clear();
                         }
                     }

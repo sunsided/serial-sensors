@@ -45,10 +45,12 @@ impl Default for InnerSensorDataBuffer {
 }
 
 impl SensorDataBuffer {
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.inner.len.load(Ordering::SeqCst)
     }
 
+    #[allow(dead_code)]
     pub async fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -87,10 +89,12 @@ impl SensorDataBuffer {
 }
 
 impl InnerSensorDataBuffer {
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.len.load(Ordering::SeqCst)
     }
 
+    #[allow(dead_code)]
     pub async fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -112,6 +116,7 @@ impl InnerSensorDataBuffer {
     }
 
     /// Returns the average duration between elements.
+    #[allow(dead_code)]
     pub fn average_duration(&self) -> Duration {
         self.fps.average_duration()
     }

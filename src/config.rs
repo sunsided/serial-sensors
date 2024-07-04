@@ -1,16 +1,10 @@
-use std::{collections::HashMap, fmt, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use color_eyre::eyre::Result;
-use config::Value;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use ratatui::style::{Color, Modifier, Style};
-use serde::{
-    de::{self, Deserializer, MapAccess, Visitor},
-    Deserialize, Serialize,
-};
-
 use derive_deref::{Deref, DerefMut};
-use serde_json::Value as JsonValue;
+use ratatui::style::{Color, Modifier, Style};
+use serde::{Deserialize, Deserializer};
 
 use crate::{action::Action, app::Mode};
 
@@ -27,6 +21,7 @@ pub struct AppConfig {
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Config {
     #[serde(default, flatten)]
+    #[allow(dead_code)] // TODO: Get rid of that?
     pub config: AppConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
@@ -80,7 +75,7 @@ impl Config {
             for (style_key, style) in default_styles.iter() {
                 user_styles
                     .entry(style_key.clone())
-                    .or_insert_with(|| style.clone());
+                    .or_insert_with(|| *style);
             }
         }
 
@@ -192,69 +187,6 @@ fn parse_key_code_with_modifiers(
         _ => return Err(format!("Unable to parse {raw}")),
     };
     Ok(KeyEvent::new(c, modifiers))
-}
-
-pub fn key_event_to_string(key_event: &KeyEvent) -> String {
-    let char;
-    let key_code = match key_event.code {
-        KeyCode::Backspace => "backspace",
-        KeyCode::Enter => "enter",
-        KeyCode::Left => "left",
-        KeyCode::Right => "right",
-        KeyCode::Up => "up",
-        KeyCode::Down => "down",
-        KeyCode::Home => "home",
-        KeyCode::End => "end",
-        KeyCode::PageUp => "pageup",
-        KeyCode::PageDown => "pagedown",
-        KeyCode::Tab => "tab",
-        KeyCode::BackTab => "backtab",
-        KeyCode::Delete => "delete",
-        KeyCode::Insert => "insert",
-        KeyCode::F(c) => {
-            char = format!("f({c})");
-            &char
-        }
-        KeyCode::Char(c) if c == ' ' => "space",
-        KeyCode::Char(c) => {
-            char = c.to_string();
-            &char
-        }
-        KeyCode::Esc => "esc",
-        KeyCode::Null => "",
-        KeyCode::CapsLock => "",
-        KeyCode::Menu => "",
-        KeyCode::ScrollLock => "",
-        KeyCode::Media(_) => "",
-        KeyCode::NumLock => "",
-        KeyCode::PrintScreen => "",
-        KeyCode::Pause => "",
-        KeyCode::KeypadBegin => "",
-        KeyCode::Modifier(_) => "",
-    };
-
-    let mut modifiers = Vec::with_capacity(3);
-
-    if key_event.modifiers.intersects(KeyModifiers::CONTROL) {
-        modifiers.push("ctrl");
-    }
-
-    if key_event.modifiers.intersects(KeyModifiers::SHIFT) {
-        modifiers.push("shift");
-    }
-
-    if key_event.modifiers.intersects(KeyModifiers::ALT) {
-        modifiers.push("alt");
-    }
-
-    let mut key = modifiers.join("-");
-
-    if !key.is_empty() {
-        key.push('-');
-    }
-    key.push_str(key_code);
-
-    key
 }
 
 pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {

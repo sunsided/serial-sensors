@@ -20,7 +20,7 @@ impl FpsDisplay {
 }
 
 impl Component for FpsDisplay {
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+    fn update(&mut self, _action: Action) -> Result<Option<Action>> {
         Ok(None)
     }
 

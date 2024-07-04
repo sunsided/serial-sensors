@@ -186,11 +186,6 @@ impl Tui {
         Ok(())
     }
 
-    pub fn resume(&mut self) -> Result<()> {
-        self.enter()?;
-        Ok(())
-    }
-
     pub async fn next(&mut self) -> Option<Event> {
         self.event_rx.recv().await
     }
