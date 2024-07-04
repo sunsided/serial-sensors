@@ -7,27 +7,29 @@ use tokio::time::Instant;
 
 #[derive(Debug)]
 pub struct FpsCounter {
+    capacity: usize,
     buffer: Mutex<VecDeque<Instant>>,
     fps: AtomicU64,
 }
 
 impl Default for FpsCounter {
     fn default() -> Self {
+        let capacity = 100;
         Self {
+            capacity,
             // TODO: Replace with im::Vector to get rid of lock
-            buffer: Mutex::new(VecDeque::with_capacity(100)),
+            buffer: Mutex::new(VecDeque::with_capacity(capacity + 1)),
             fps: AtomicU64::new(0),
         }
     }
 }
 
 impl FpsCounter {
-    pub fn increment(&self) {
+    pub fn mark(&self) {
         let mut buf = self.buffer.lock().expect("failed to lock");
         buf.push_front(Instant::now());
 
-        let cap = buf.capacity();
-        buf.truncate(cap);
+        buf.truncate(self.capacity);
 
         // At least two data points are needed for an FPS indication.
         if buf.len() < 2 {
@@ -38,11 +40,10 @@ impl FpsCounter {
         let mut count = 0;
 
         for pair in buf.iter().zip(buf.iter().skip(1)) {
-            let (first, second) = pair;
+            let (second, first) = pair;
             total_duration += second.duration_since(*first);
             count += 1;
         }
-
         let average_duration = total_duration / count as u32;
 
         // Construct a time code where the upper 32 bits are seconds and the lower 32 bits are fractional nanoseconds.
@@ -50,7 +51,8 @@ impl FpsCounter {
         self.fps.store(time, Ordering::SeqCst);
     }
 
-    pub fn fps(&self) -> Duration {
+    /// Returns the average duration between elements.
+    pub fn average_duration(&self) -> Duration {
         let value = self.fps.load(Ordering::SeqCst);
         Self::decode(value)
     }

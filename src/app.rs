@@ -12,7 +12,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     action::Action,
-    components::{Component, fps::FpsCounter},
+    components::{Component, fps::FpsDisplay},
     config::Config,
     tui,
 };
@@ -35,16 +35,15 @@ pub struct App {
     pub should_suspend: bool,
     pub mode: Mode,
     pub last_tick_key_events: Vec<KeyEvent>,
-    pub receiver: Arc<SensorDataBuffer>,
 }
 
 impl App {
     pub fn new(tick_rate: f64, frame_rate: f64, receiver: Arc<SensorDataBuffer>) -> Result<Self> {
-        // let home = Home::new();
         let streaming = StreamingLog::new(receiver.clone());
-        let fps = FpsCounter::new();
+        let fps = FpsDisplay::new(receiver);
         let config = Config::new()?;
         let mode = Mode::Home;
+
         Ok(Self {
             tick_rate,
             frame_rate,
@@ -54,7 +53,6 @@ impl App {
             config,
             mode,
             last_tick_key_events: Vec::new(),
-            receiver,
         })
     }
 

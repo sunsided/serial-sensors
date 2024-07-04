@@ -1,9 +1,11 @@
+use std::sync::Arc;
 use std::time::Instant;
 
 use color_eyre::eyre::Result;
 use ratatui::{prelude::*, widgets::*};
 
 use crate::action::Action;
+use crate::data_buffer::SensorDataBuffer;
 
 use super::Component;
 
@@ -13,45 +15,23 @@ pub enum Ticker {
     RenderTick,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct FpsCounter {
-    app_start_time: Instant,
-    app_frames: u32,
-    app_fps: f64,
-
+#[derive(Debug, Clone)]
+pub struct FpsDisplay {
     render_start_time: Instant,
     render_frames: u32,
     render_fps: f64,
+
+    receiver: Arc<SensorDataBuffer>,
 }
 
-impl Default for FpsCounter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl FpsCounter {
-    pub fn new() -> Self {
+impl FpsDisplay {
+    pub fn new(receiver: Arc<SensorDataBuffer>) -> Self {
         Self {
-            app_start_time: Instant::now(),
-            app_frames: 0,
-            app_fps: 0.0,
             render_start_time: Instant::now(),
             render_frames: 0,
             render_fps: 0.0,
+            receiver,
         }
-    }
-
-    fn app_tick(&mut self) -> Result<()> {
-        self.app_frames += 1;
-        let now = Instant::now();
-        let elapsed = (now - self.app_start_time).as_secs_f64();
-        if elapsed >= 1.0 {
-            self.app_fps = self.app_frames as f64 / elapsed;
-            self.app_start_time = now;
-            self.app_frames = 0;
-        }
-        Ok(())
     }
 
     fn render_tick(&mut self) -> Result<()> {
@@ -67,11 +47,8 @@ impl FpsCounter {
     }
 }
 
-impl Component for FpsCounter {
+impl Component for FpsDisplay {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        if let Action::Tick = action {
-            self.app_tick()?
-        };
         if let Action::Render = action {
             self.render_tick()?
         };
@@ -79,6 +56,9 @@ impl Component for FpsCounter {
     }
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
+        let durations = self.receiver.average_duration();
+        let fps = durations.as_secs_f32().recip();
+
         let rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
@@ -89,10 +69,7 @@ impl Component for FpsCounter {
 
         let rect = rects[0];
 
-        let s = format!(
-            "{:.2} fps (app) {:.2} fps (render)",
-            self.app_fps, self.render_fps
-        );
+        let s = format!("{:.2} Hz (data) {:.2} fps (render)", fps, self.render_fps);
         let block = Block::default().title(block::Title::from(s.dim()).alignment(Alignment::Right));
         f.render_widget(block, rect);
         Ok(())
