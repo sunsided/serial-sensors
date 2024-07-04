@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
@@ -15,6 +17,7 @@ use crate::{
     tui,
 };
 use crate::components::streaming::StreamingLog;
+use crate::data_buffer::SensorDataBuffer;
 use crate::tui::Tui;
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -32,17 +35,13 @@ pub struct App {
     pub should_suspend: bool,
     pub mode: Mode,
     pub last_tick_key_events: Vec<KeyEvent>,
-    pub receiver: UnboundedReceiver<Version1DataFrame>,
+    pub receiver: Arc<SensorDataBuffer>,
 }
 
 impl App {
-    pub fn new(
-        tick_rate: f64,
-        frame_rate: f64,
-        receiver: UnboundedReceiver<Version1DataFrame>,
-    ) -> Result<Self> {
+    pub fn new(tick_rate: f64, frame_rate: f64, receiver: Arc<SensorDataBuffer>) -> Result<Self> {
         // let home = Home::new();
-        let streaming = StreamingLog::new();
+        let streaming = StreamingLog::new(receiver.clone());
         let fps = FpsCounter::new();
         let config = Config::new()?;
         let mode = Mode::Home;
@@ -119,10 +118,6 @@ impl App {
                         action_tx.send(action)?;
                     }
                 }
-            }
-
-            while let Ok(data) = self.receiver.try_recv() {
-                action_tx.send(Action::SensorRow(data))?;
             }
 
             while let Ok(action) = action_rx.try_recv() {

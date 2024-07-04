@@ -1,31 +1,28 @@
 use std::default::Default;
+use std::sync::Arc;
 
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
 use serial_sensors_proto::SensorData;
-use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::data_buffer::SensorDataBuffer;
 
 use super::{Component, Frame};
 
 pub struct StreamingLog {
     pub action_tx: Option<UnboundedSender<Action>>,
-    pub data: Vec<Version1DataFrame>,
+    pub receiver: Arc<SensorDataBuffer>,
 }
 
 impl StreamingLog {
-    pub fn new() -> Self {
+    pub fn new(receiver: Arc<SensorDataBuffer>) -> Self {
         Self {
             action_tx: None,
-            data: Vec::new(),
+            receiver,
         }
-    }
-
-    fn add(&mut self, s: Version1DataFrame) {
-        self.data.push(s)
     }
 }
 
@@ -40,10 +37,7 @@ impl Component for StreamingLog {
         Ok(None)
     }
 
-    fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        if let Action::SensorRow(s) = action {
-            self.add(s)
-        }
+    fn update(&mut self, _action: Action) -> Result<Option<Action>> {
         Ok(None)
     }
 
@@ -52,9 +46,15 @@ impl Component for StreamingLog {
             .constraints([Constraint::Percentage(100), Constraint::Min(5)].as_ref())
             .split(rect);
 
-        let text: Vec<Line> = self
-            .data
-            .clone()
+        // Let's not talk about this.
+        const CAPACITY: usize = 20;
+        let mut data = Vec::with_capacity(CAPACITY);
+        let len = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current()
+                .block_on(self.receiver.clone_latest(CAPACITY, &mut data))
+        });
+
+        let log_rows: Vec<Line> = data[..len]
             .iter()
             .map(|frame| {
                 let header = format!(
@@ -84,7 +84,7 @@ impl Component for StreamingLog {
             .collect();
 
         f.render_widget(
-            Paragraph::new(text)
+            Paragraph::new(log_rows)
                 .left_aligned()
                 .block(
                     Block::default()
@@ -93,6 +93,7 @@ impl Component for StreamingLog {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 )
+                .scroll((5, 0))
                 .style(Style::default().fg(Color::Gray)),
             rects[0],
         );

@@ -1,5 +1,6 @@
 extern crate core;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use clap::Parser;
@@ -14,6 +15,7 @@ use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialSt
 
 use crate::app::App;
 use crate::cli::Cli;
+use crate::data_buffer::SensorDataBuffer;
 use crate::utils::{initialize_logging, initialize_panic_handler};
 
 mod action;
@@ -21,6 +23,7 @@ mod app;
 mod cli;
 mod components;
 mod config;
+mod data_buffer;
 mod tui;
 mod utils;
 
@@ -35,6 +38,8 @@ async fn main() -> Result<()> {
 
     let args = Cli::parse();
 
+    let buffer = Arc::new(SensorDataBuffer::default());
+
     // Open the serial port
     let port = tokio_serial::new(PORT_NAME, BAUD_RATE)
         .data_bits(DataBits::Eight)
@@ -47,47 +52,25 @@ async fn main() -> Result<()> {
 
     let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
     let (_command, to_device) = unbounded_channel::<String>();
-    let (decoder_send, decoded_event) = unbounded_channel::<Version1DataFrame>();
+    // let (decoder_send, decoded_event) = unbounded_channel::<Version1DataFrame>();
 
     // Spawn a decoder thread.
-    let decoder_handle = tokio::spawn(decoder(receiver, decoder_send));
+    tokio::spawn(decoder(receiver, buffer.clone()));
 
     // Spawn a thread for reading data from the serial port
-    let cdc_handle = tokio::spawn(handle_data_recv(port, from_device, to_device));
+    tokio::spawn(handle_data_recv(port, from_device, to_device));
 
     // Run the app.
-    let mut app = App::new(args.tick_rate, args.frame_rate, decoded_event)?;
+    let mut app = App::new(args.tick_rate, args.frame_rate, buffer)?;
     app.run().await?;
-
-    // TODO and BUG: Race condition with the app. We need to have the handle data task inform the app about it stopping, if that happens. Maybe the channel close event?
-    tokio::select! {
-        result = cdc_handle => {
-            match result {
-                Ok(result) => match result {
-                    Ok(_) => println!("CDC task completed successfully"),
-                    Err(e) => eprintln!("CDC task returned an error: {}", e),
-                },
-                Err(e) => eprintln!("CDC task panicked: {}", e),
-            }
-        },
-        result = decoder_handle => {
-            match result {
-                Ok(result) => match result {
-                    Ok(_) => println!("Decoder task completed successfully"),
-                    Err(e) => eprintln!("Decoder task returned an error: {}", e),
-                },
-                Err(e) => eprintln!("Decoder task panicked: {}", e),
-            }
-        }
-    };
 
     Ok(())
 }
 
 async fn decoder(
     mut receiver: UnboundedReceiver<Vec<u8>>,
-    sender: UnboundedSender<Version1DataFrame>,
-) -> Result<()> {
+    data_buffer: Arc<SensorDataBuffer>,
+) -> anyhow::Result<()> {
     // Main loop for printing input from the serial line.
     let mut buffer = Vec::with_capacity(1024);
     loop {
@@ -104,7 +87,7 @@ async fn decoder(
                     let first_nonzero = buffer.iter().position(|&x| x != 0).unwrap_or(buffer.len());
                     buffer.drain(0..first_nonzero);
 
-                    sender.send(frame.data)?;
+                    data_buffer.enqueue(frame.data).await;
                 }
                 Err(e) => {
                     match e {
