@@ -16,13 +16,13 @@ use crate::data_buffer::SensorDataBuffer;
 
 use super::{Component, Frame};
 
-pub struct StreamingLog {
+pub struct Sensors {
     action_tx: Option<UnboundedSender<Action>>,
     receiver: Arc<SensorDataBuffer>,
     recent: Vec<Version1DataFrame>,
 }
 
-impl StreamingLog {
+impl Sensors {
     pub fn new(receiver: Arc<SensorDataBuffer>) -> Self {
         let capacity = receiver.capacity().min(60);
         Self {
@@ -33,7 +33,7 @@ impl StreamingLog {
     }
 }
 
-impl Component for StreamingLog {
+impl Component for Sensors {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
@@ -50,12 +50,11 @@ impl Component for StreamingLog {
 
     fn draw(&mut self, f: &mut Frame<'_>, rect: Rect) -> Result<()> {
         let rects = Layout::default()
-            .constraints([Constraint::Min(10), Constraint::Percentage(100)].as_ref())
+            .constraints([Constraint::Length(10)].as_ref())
             .split(rect);
-        let rect = rects[1];
 
         // Fetch the actual height of the window.
-        let height = rects[1].height;
+        let height = rects[0].height;
 
         // Obtain the most recent data.
         self.recent.clear();
@@ -131,13 +130,13 @@ impl Component for StreamingLog {
                 .left_aligned()
                 .block(
                     Block::default()
-                        .title("Streaming Log")
+                        .title("Sensors")
                         .title_alignment(Alignment::Left)
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 )
                 .style(Style::default().fg(Color::Gray)),
-            rect,
+            rects[0],
         );
 
         Ok(())

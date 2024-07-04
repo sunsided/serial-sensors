@@ -7,6 +7,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{action::Action, config::Config, tui::Event};
 
 pub mod fps;
+pub mod sensors;
 pub mod streaming;
 
 /// A TUI component.

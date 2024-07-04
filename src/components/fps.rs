@@ -33,12 +33,12 @@ impl Component for FpsDisplay {
         let rects = Layout::default()
             .direction(Direction::Vertical)
             .constraints(vec![
-                Constraint::Length(1), // first row
+                Constraint::Length(10), // first row
                 Constraint::Min(0),
             ])
             .split(rect);
 
-        let rect = rects[0];
+        let rect = rects[1];
 
         let s = if num_sensors != 1 { "s" } else { "" };
 

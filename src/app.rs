@@ -4,12 +4,10 @@ use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
-use serial_sensors_proto::types::AccelerometerI16;
-use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::Vector3Data;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 
+use crate::components::sensors::Sensors;
 use crate::components::streaming::StreamingLog;
 use crate::data_buffer::SensorDataBuffer;
 use crate::tui::Tui;
@@ -39,6 +37,7 @@ pub struct App {
 
 impl App {
     pub fn new(tick_rate: f64, frame_rate: f64, receiver: Arc<SensorDataBuffer>) -> Result<Self> {
+        let sensors = Sensors::new(receiver.clone());
         let streaming = StreamingLog::new(receiver.clone());
         let fps = FpsDisplay::new(receiver);
         let config = Config::new()?;
@@ -47,7 +46,7 @@ impl App {
         Ok(Self {
             tick_rate,
             frame_rate,
-            components: vec![Box::new(streaming), Box::new(fps)],
+            components: vec![Box::new(sensors), Box::new(streaming), Box::new(fps)],
             should_quit: false,
             should_suspend: false,
             config,
@@ -75,14 +74,6 @@ impl App {
         for component in self.components.iter_mut() {
             component.init()?;
         }
-
-        // Put some data in.
-        action_tx.send(Action::SensorRow(Version1DataFrame::new(
-            0,
-            1,
-            2,
-            AccelerometerI16::new(Vector3Data::new(0, 1, 2)),
-        )))?;
 
         loop {
             if let Some(e) = tui.next().await {
