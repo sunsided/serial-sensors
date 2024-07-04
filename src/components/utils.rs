@@ -165,6 +165,14 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
                 ),
             ])
         }
+        SensorData::LinearRanges(ref ident) => {
+            line.extend(vec![
+                Span::styled("transformation data", Style::default().cyan()),
+                " ".into(),
+            ]);
+
+            line.extend(sensor_id(&ident.target));
+        }
         SensorData::AccelerometerI16(vec) => {
             let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
 
