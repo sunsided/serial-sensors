@@ -4,6 +4,7 @@ use std::sync::Arc;
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
+use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::SensorData;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -13,8 +14,9 @@ use crate::data_buffer::SensorDataBuffer;
 use super::{Component, Frame};
 
 pub struct StreamingLog {
-    pub action_tx: Option<UnboundedSender<Action>>,
-    pub receiver: Arc<SensorDataBuffer>,
+    action_tx: Option<UnboundedSender<Action>>,
+    receiver: Arc<SensorDataBuffer>,
+    recent: Vec<Version1DataFrame>,
 }
 
 impl StreamingLog {
@@ -22,6 +24,7 @@ impl StreamingLog {
         Self {
             action_tx: None,
             receiver,
+            recent: Vec::with_capacity(20),
         }
     }
 }
@@ -47,15 +50,16 @@ impl Component for StreamingLog {
             .split(rect);
 
         // Let's not talk about this.
-        const CAPACITY: usize = 20;
-        let mut data = Vec::with_capacity(CAPACITY);
+        self.recent.clear();
+        let capacity = self.recent.capacity();
         let len = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current()
-                .block_on(self.receiver.clone_latest(CAPACITY, &mut data))
+                .block_on(self.receiver.clone_latest(capacity, &mut self.recent))
         });
 
-        let log_rows: Vec<Line> = data[..len]
+        let log_rows: Vec<Line> = self.recent[..len]
             .iter()
+            .rev()
             .map(|frame| {
                 let header = format!(
                     "{}, {}:{} {:02X}:{:02X} ",

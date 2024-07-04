@@ -8,7 +8,7 @@ use lazy_static::lazy_static;
 use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
-    self, Layer, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
+    self, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, Layer,
 };
 
 /// The git commit hash under which this version was built.
