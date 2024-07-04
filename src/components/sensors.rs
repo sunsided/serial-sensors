@@ -62,12 +62,20 @@ impl Component for Sensors {
                     .unwrap_or_default();
                 let fps = avg_duration.as_secs_f32().recip();
 
+                let skipped = self.receiver.get_skipped_by_sensor(&id);
+                let skipped = if skipped > 0 {
+                    Span::styled(format!("/{skipped}"), Style::default().red())
+                } else {
+                    "".into()
+                };
+
                 let mut lines = vec![
                     Span::styled(format!("{no}"), Style::default()),
                     ": ".into(),
                     Span::styled(id.tag().to_string(), Style::default().yellow()),
                     ":".into(),
                     Span::styled(frame.sensor_sequence.to_string(), Style::default().dim()),
+                    skipped,
                     " ".into(),
                     Span::styled(
                         format!("{:02X}", frame.value.sensor_type_id()),

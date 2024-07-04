@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::default::Default;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::RwLock;
 use std::time::Duration;
 
@@ -21,6 +21,8 @@ struct InnerSensorDataBuffer {
     data: RwLock<VecDeque<Version1DataFrame>>,
     len: AtomicUsize,
     fps: FpsCounter,
+    sequence: AtomicU32,
+    num_skipped: AtomicU32,
 }
 
 impl Default for SensorDataBuffer {
@@ -40,6 +42,8 @@ impl Default for InnerSensorDataBuffer {
             data: RwLock::new(VecDeque::with_capacity(capacity)),
             len: AtomicUsize::new(0),
             fps: FpsCounter::default(),
+            sequence: AtomicU32::new(0),
+            num_skipped: AtomicU32::new(0),
         }
     }
 }
@@ -101,6 +105,11 @@ impl SensorDataBuffer {
         let map = self.by_sensor.read().expect("failed to lock");
         map.get(id).map(|entry| entry.average_duration())
     }
+
+    pub fn get_skipped_by_sensor(&self, id: &SensorId) -> u32 {
+        let map = self.by_sensor.read().expect("failed to lock");
+        map.get(id).map(|entry| entry.skipped()).unwrap_or(0)
+    }
 }
 
 impl InnerSensorDataBuffer {
@@ -116,6 +125,12 @@ impl InnerSensorDataBuffer {
 
     pub fn enqueue(&self, frame: Version1DataFrame) {
         let mut data = self.data.write().expect("lock failed");
+
+        let previous = self.sequence.swap(frame.sensor_sequence, Ordering::SeqCst);
+        if frame.sensor_sequence != previous + 1 {
+            self.num_skipped.fetch_add(1, Ordering::SeqCst);
+        }
+
         data.push_front(frame);
         let max_len = self.capacity;
         data.truncate(max_len);
@@ -128,6 +143,10 @@ impl InnerSensorDataBuffer {
         let length = count.min(data.len());
         target.extend(data.range(..length).cloned());
         length
+    }
+
+    pub fn skipped(&self) -> u32 {
+        self.num_skipped.load(Ordering::SeqCst)
     }
 
     /// Returns the average duration between elements.

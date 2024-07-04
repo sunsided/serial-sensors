@@ -56,7 +56,7 @@ pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
 
             line.extend(vec![
                 Span::styled("acc", Style::default().cyan()),
-                "  = (".into(),
+                " = (".into(),
                 axis_to_span(vec.x as f32 / 16384.0, highlight_x), // TODO: Don't assume normalization
                 ", ".into(),
                 axis_to_span(vec.y as f32 / 16384.0, highlight_y), // TODO: Don't assume normalization
@@ -70,7 +70,7 @@ pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
 
             line.extend(vec![
                 Span::styled("mag", Style::default().cyan()),
-                "  = (".into(),
+                " = (".into(),
                 axis_to_span(vec.x as f32 / 1100.0, highlight_x), // TODO: Don't assume normalization
                 ", ".into(),
                 axis_to_span(vec.y as f32 / 1100.0, highlight_y), // TODO: Don't assume normalization
@@ -98,7 +98,7 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
 
             line.extend(vec![
                 Span::styled("acc", Style::default().cyan()),
-                "  = (".into(),
+                " = (".into(),
                 raw_to_span(vec.x, highlight_x),
                 ", ".into(),
                 raw_to_span(vec.y, highlight_y),
@@ -112,7 +112,7 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
 
             line.extend(vec![
                 Span::styled("mag", Style::default().cyan()),
-                "  = (".into(),
+                " = (".into(),
                 raw_to_span(vec.x, highlight_x),
                 ", ".into(),
                 raw_to_span(vec.y, highlight_y),
