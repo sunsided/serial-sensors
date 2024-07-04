@@ -1,48 +1,30 @@
-use std::{collections::HashMap, time::Duration};
+use std::default::Default;
 
 use color_eyre::eyre::Result;
-use crossterm::event::{KeyCode, KeyEvent};
-use log::error;
+use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
-use serial_sensors_proto::types::AccelerometerI16;
+use serial_sensors_proto::SensorData;
 use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::trace;
-use tui_input::{backend::crossterm::EventHandler, Input};
 
-use crate::{action::Action, config::key_event_to_string};
+use crate::action::Action;
 
 use super::{Component, Frame};
 
-#[derive(Default, Copy, Clone, PartialEq, Eq)]
-pub enum Mode {
-    #[default]
-    Normal,
-    Insert,
-    Processing,
-}
-
-#[derive(Default)]
 pub struct StreamingLog {
-    pub mode: Mode,
-    pub input: Input,
     pub action_tx: Option<UnboundedSender<Action>>,
-    pub keymap: HashMap<KeyEvent, Action>,
     pub data: Vec<Version1DataFrame>,
-    pub last_events: Vec<KeyEvent>,
 }
 
 impl StreamingLog {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            action_tx: None,
+            data: Vec::new(),
+        }
     }
 
-    pub fn keymap(mut self, keymap: HashMap<KeyEvent, Action>) -> Self {
-        self.keymap = keymap;
-        self
-    }
-
-    pub fn add(&mut self, s: Version1DataFrame) {
+    fn add(&mut self, s: Version1DataFrame) {
         self.data.push(s)
     }
 }
@@ -53,35 +35,14 @@ impl Component for StreamingLog {
         Ok(())
     }
 
-    fn handle_key_events(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        self.last_events.push(key);
-        let action = match self.mode {
-            Mode::Normal | Mode::Processing => return Ok(None),
-            Mode::Insert => match key.code {
-                KeyCode::Esc => Action::EnterNormal,
-                KeyCode::Enter => {
-                    if let Some(sender) = &self.action_tx {
-                        if let Err(e) =
-                            sender.send(Action::CompleteInput(self.input.value().to_string()))
-                        {
-                            error!("Failed to send action: {:?}", e);
-                        }
-                    }
-                    Action::EnterNormal
-                }
-                _ => {
-                    self.input.handle_event(&crossterm::event::Event::Key(key));
-                    Action::Update
-                }
-            },
-        };
-        Ok(Some(action))
+    fn handle_key_events(&mut self, _key: KeyEvent) -> Result<Option<Action>> {
+        // TODO: Add action to clear the buffer?
+        Ok(None)
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
-        match action {
-            Action::SensorRow(s) => self.add(s),
-            _ => (),
+        if let Action::SensorRow(s) = action {
+            self.add(s)
         }
         Ok(None)
     }
@@ -105,26 +66,26 @@ impl Component for StreamingLog {
                     frame.value.value_type() as u8,
                 );
 
-                let vec: AccelerometerI16 = frame.value.clone().try_into().unwrap();
+                let payload = if let SensorData::AccelerometerI16(vec) = frame.value {
+                    format!(
+                        "acc = ({:.04}, {:.04}, {:.04})",
+                        vec.x as f32 / 16384.0,
+                        vec.y as f32 / 16384.0,
+                        vec.z as f32 / 16384.0
+                    )
+                } else {
+                    String::new()
+                };
 
-                let str = format!(
-                    "acc = ({:.04}, {:.04}, {:.04})",
-                    vec.x as f32 / 16384.0,
-                    vec.y as f32 / 16384.0,
-                    vec.z as f32 / 16384.0
-                );
-
-                let l = format!("{header} {str}");
+                let l = format!("{header} {payload}");
 
                 Line::from(l)
             })
             .collect();
 
-        let width = rects[1].width.max(3) - 3; // keep 2 for borders and 1 for cursor
-        let scroll = self.input.visual_scroll(width as usize);
-
         f.render_widget(
             Paragraph::new(text)
+                .left_aligned()
                 .block(
                     Block::default()
                         .title("Streaming Log")
@@ -132,9 +93,7 @@ impl Component for StreamingLog {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 )
-                .style(Style::default().fg(Color::Gray))
-                .alignment(Alignment::Left)
-                .scroll((0, scroll as u16)),
+                .style(Style::default().fg(Color::Gray)),
             rects[0],
         );
 

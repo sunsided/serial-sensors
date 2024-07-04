@@ -6,7 +6,7 @@ use serial_sensors_proto::types::AccelerometerI16;
 use serial_sensors_proto::Vector3Data;
 use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     action::Action,
@@ -32,10 +32,15 @@ pub struct App {
     pub should_suspend: bool,
     pub mode: Mode,
     pub last_tick_key_events: Vec<KeyEvent>,
+    pub receiver: UnboundedReceiver<Version1DataFrame>,
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    pub fn new(
+        tick_rate: f64,
+        frame_rate: f64,
+        receiver: UnboundedReceiver<Version1DataFrame>,
+    ) -> Result<Self> {
         // let home = Home::new();
         let streaming = StreamingLog::new();
         let fps = FpsCounter::new();
@@ -50,6 +55,7 @@ impl App {
             config,
             mode,
             last_tick_key_events: Vec::new(),
+            receiver,
         })
     }
 
@@ -113,6 +119,10 @@ impl App {
                         action_tx.send(action)?;
                     }
                 }
+            }
+
+            while let Ok(data) = self.receiver.try_recv() {
+                action_tx.send(Action::SensorRow(data))?;
             }
 
             while let Ok(action) = action_rx.try_recv() {
