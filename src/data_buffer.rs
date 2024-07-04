@@ -5,13 +5,13 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{SensorData, SensorId};
+use serial_sensors_proto::{DataFrame, SensorId};
 
 use crate::fps_counter::FpsCounter;
 
 #[derive(Debug)]
 pub struct SensorDataBuffer {
-    inner: InnerSensorDataBuffer,
+    inner: RwLock<InnerSensorDataBuffer>,
     by_sensor: RwLock<HashMap<SensorId, InnerSensorDataBuffer>>,
 }
 
@@ -19,7 +19,7 @@ pub struct SensorDataBuffer {
 struct InnerSensorDataBuffer {
     sensor_specific: bool,
     capacity: usize,
-    data: RwLock<VecDeque<Version1DataFrame>>,
+    data: VecDeque<Version1DataFrame>,
     len: AtomicUsize,
     fps: FpsCounter,
     sequence: AtomicU32,
@@ -29,7 +29,7 @@ struct InnerSensorDataBuffer {
 impl Default for SensorDataBuffer {
     fn default() -> Self {
         Self {
-            inner: InnerSensorDataBuffer::new(false),
+            inner: RwLock::new(InnerSensorDataBuffer::new(false)),
             by_sensor: RwLock::new(HashMap::default()),
         }
     }
@@ -50,7 +50,7 @@ impl Default for InnerSensorDataBuffer {
         Self {
             sensor_specific: true,
             capacity,
-            data: RwLock::new(VecDeque::with_capacity(capacity)),
+            data: VecDeque::with_capacity(capacity),
             len: AtomicUsize::new(0),
             fps: FpsCounter::default(),
             sequence: AtomicU32::new(0),
@@ -62,7 +62,8 @@ impl Default for InnerSensorDataBuffer {
 impl SensorDataBuffer {
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
-        self.inner.len.load(Ordering::SeqCst)
+        let inner = self.inner.read().expect("failed to lock");
+        inner.len()
     }
 
     #[allow(dead_code)]
@@ -71,7 +72,8 @@ impl SensorDataBuffer {
     }
 
     pub fn capacity(&self) -> usize {
-        self.inner.capacity
+        let inner = self.inner.read().expect("failed to lock");
+        inner.capacity
     }
 
     pub fn num_sensors(&self) -> usize {
@@ -81,10 +83,12 @@ impl SensorDataBuffer {
 
     pub fn enqueue(&self, frame: Version1DataFrame) {
         let sensor_id = SensorId::from(&frame);
-        self.inner.enqueue(frame.clone());
+
+        let mut inner = self.inner.write().expect("failed to lock");
+        inner.enqueue(frame.clone());
 
         // Sensor-specific buffers do not care about identification frames.
-        if let SensorData::Identification(_ident) = &frame.value {
+        if frame.is_meta() {
             // Nothing to do here.
             return;
         };
@@ -93,19 +97,21 @@ impl SensorDataBuffer {
         map.entry(sensor_id)
             .and_modify(|entry| entry.enqueue(frame.clone()))
             .or_insert_with(|| {
-                let buffer = InnerSensorDataBuffer::default();
+                let mut buffer = InnerSensorDataBuffer::default();
                 buffer.enqueue(frame);
                 buffer
             });
     }
 
     pub fn clone_latest(&self, count: usize, target: &mut Vec<Version1DataFrame>) -> usize {
-        self.inner.clone_latest(count, target)
+        let inner = self.inner.read().expect("failed to lock");
+        inner.clone_latest(count, target)
     }
 
     /// Returns the average duration between elements.
     pub fn average_duration(&self) -> Duration {
-        self.inner.fps.average_duration()
+        let inner = self.inner.read().expect("failed to lock");
+        inner.fps.average_duration()
     }
 
     pub fn get_sensors(&self) -> Vec<SensorId> {
@@ -140,16 +146,13 @@ impl InnerSensorDataBuffer {
         self.len() == 0
     }
 
-    pub fn enqueue(&self, frame: Version1DataFrame) {
+    pub fn enqueue(&mut self, frame: Version1DataFrame) {
         // Sensor-specific buffers do not care about identification frames.
-        if self.sensor_specific {
-            if let SensorData::Identification(_ident) = &frame.value {
-                // Nothing to do here.
-                return;
-            };
+        if self.sensor_specific && frame.is_meta() {
+            return;
         }
 
-        let mut data = self.data.write().expect("lock failed");
+        let data = &mut self.data;
 
         let previous = self.sequence.swap(frame.sensor_sequence, Ordering::SeqCst);
         // If the value didn't increase by one (sensor case) or remain identical (metadata case), count it as a strike.
@@ -165,7 +168,7 @@ impl InnerSensorDataBuffer {
     }
 
     pub fn clone_latest(&self, count: usize, target: &mut Vec<Version1DataFrame>) -> usize {
-        let data = self.data.read().expect("lock failed");
+        let data = &self.data;
         let length = count.min(data.len());
         target.extend(data.range(..length).cloned());
         length
@@ -183,7 +186,6 @@ impl InnerSensorDataBuffer {
 
     /// Gets the latest record.
     pub fn get_latest(&self) -> Option<Version1DataFrame> {
-        let data = self.data.read().expect("lock failed");
-        data.front().cloned()
+        self.data.front().cloned()
     }
 }

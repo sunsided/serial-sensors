@@ -1381,7 +1381,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto"
 version = "0.2.3"
-source = "git+https://github.com/sunsided/serial-sensors-proto#bb55c0e5e1ce84ee0a452601af2fd6b1e0b2b4b8"
+source = "git+https://github.com/sunsided/serial-sensors-proto#30b0767c76d62bed0fb2dad567eedb9fad53fdd1"
 dependencies = [
  "bincode",
  "corncobs",
@@ -1393,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto-derive"
 version = "0.2.3"
-source = "git+https://github.com/sunsided/serial-sensors-proto#bb55c0e5e1ce84ee0a452601af2fd6b1e0b2b4b8"
+source = "git+https://github.com/sunsided/serial-sensors-proto#30b0767c76d62bed0fb2dad567eedb9fad53fdd1"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -1496,9 +1496,9 @@ dependencies = [
 
 [[package]]
 name = "stability"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ff9eaf853dec4c8802325d8b6d3dffa86cc707fd7a1a4cdbf416e13b061787a"
+checksum = "d904e7009df136af5297832a3ace3370cd14ff1546a232f4f185036c2736fcac"
 dependencies = [
  "quote",
  "syn 2.0.68",

@@ -161,7 +161,6 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
                 Span::styled("temp", Style::default().cyan()),
                 " = ".into(),
                 raw_to_span(value.value, false),
-                "°C".into(),
             ]);
         }
         _ => {}
