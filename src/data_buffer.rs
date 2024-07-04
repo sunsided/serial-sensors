@@ -127,7 +127,8 @@ impl InnerSensorDataBuffer {
         let mut data = self.data.write().expect("lock failed");
 
         let previous = self.sequence.swap(frame.sensor_sequence, Ordering::SeqCst);
-        if frame.sensor_sequence != previous + 1 {
+        // If the value didn't increase by one (sensor case) or remain identical (metadata case), count it as a strike.
+        if frame.sensor_sequence != previous + 1 && frame.sensor_sequence != previous {
             self.num_skipped.fetch_add(1, Ordering::SeqCst);
         }
 

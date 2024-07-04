@@ -204,9 +204,9 @@ checksum = "df8670b8c7b9dae1793364eafadf7239c40d669904660c5960d74cfd80b46a53"
 
 [[package]]
 name = "castaway"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a17ed5635fc8536268e5d4de1e22e81ac34419e5f052d4d51f4e01dcc263fcc"
+checksum = "0abae9be0aaf9ea96a3b1b8b1b55c602ca751eba1b1500220cea4ecbafe7c0d5"
 dependencies = [
  "rustversion",
 ]
@@ -1381,7 +1381,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto"
 version = "0.2.3"
-source = "git+https://github.com/sunsided/serial-sensors-proto#c688eaeb0175b4c844a2c05c8e42f50a9ff47ec0"
+source = "git+https://github.com/sunsided/serial-sensors-proto#bb55c0e5e1ce84ee0a452601af2fd6b1e0b2b4b8"
 dependencies = [
  "bincode",
  "corncobs",
@@ -1393,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto-derive"
 version = "0.2.3"
-source = "git+https://github.com/sunsided/serial-sensors-proto#c688eaeb0175b4c844a2c05c8e42f50a9ff47ec0"
+source = "git+https://github.com/sunsided/serial-sensors-proto#bb55c0e5e1ce84ee0a452601af2fd6b1e0b2b4b8"
 dependencies = [
  "darling",
  "proc-macro2",

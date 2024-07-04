@@ -4,7 +4,7 @@ use std::ops::Neg;
 use num_traits::ConstZero;
 use ratatui::prelude::*;
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::SensorData;
+use serial_sensors_proto::{IdentifierCode, SensorData, SensorId};
 
 pub fn axis_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
 where
@@ -47,6 +47,19 @@ where
     } else {
         (false, false, false)
     }
+}
+
+fn sensor_id<'a>(id: &SensorId) -> Vec<Span<'a>> {
+    vec![
+        Span::styled(id.tag().to_string(), Style::default().yellow()),
+        " ".into(),
+        Span::styled(format!("{:02X}", id.id()), Style::default().dim()),
+        ":".into(),
+        Span::styled(
+            format!("{:02X}", id.value_type() as u8),
+            Style::default().dim(),
+        ),
+    ]
 }
 
 pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
@@ -93,6 +106,28 @@ pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
 
 pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
     match frame.value {
+        SensorData::Identification(ref ident) => {
+            line.extend(vec![
+                Span::styled("ident:", Style::default().cyan()),
+                match ident.code {
+                    IdentifierCode::Generic => "generic".into(),
+                    IdentifierCode::Maker => "maker".into(),
+                    IdentifierCode::Product => "prod".into(),
+                    IdentifierCode::Revision => "rev".into(),
+                },
+                " ".into(),
+            ]);
+
+            line.extend(sensor_id(&ident.target));
+
+            line.extend(vec![
+                " ".into(),
+                Span::styled(
+                    String::from(ident.as_str().unwrap_or("(invalid)").trim_end()),
+                    Style::default().dim(),
+                ),
+            ])
+        }
         SensorData::AccelerometerI16(vec) => {
             let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
 
