@@ -24,6 +24,7 @@ mod cli;
 mod components;
 mod config;
 mod data_buffer;
+mod fps_counter;
 mod tui;
 mod utils;
 
