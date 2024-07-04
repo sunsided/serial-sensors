@@ -18,6 +18,18 @@ where
     }
 }
 
+pub fn raw_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
+where
+    V: Display + 'a,
+{
+    let span = Span::styled(format!("{:+4.6}", value), Style::default());
+    if highlight {
+        span.white()
+    } else {
+        span.gray()
+    }
+}
+
 pub fn highlight_axis_3<T>(x: T, y: T, z: T) -> (bool, bool, bool)
 where
     T: PartialOrd + ConstZero + Neg<Output = T>,
@@ -72,6 +84,48 @@ pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
                 Span::styled("temp", Style::default().cyan()),
                 " = ".into(),
                 axis_to_span(value.value as f32 / 8.0 + 20.0, false), // TODO: Don't assume normalization
+                "°C".into(),
+            ]);
+        }
+        _ => {}
+    }
+}
+
+pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
+    match frame.value {
+        SensorData::AccelerometerI16(vec) => {
+            let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
+
+            line.extend(vec![
+                Span::styled("acc", Style::default().cyan()),
+                "  = (".into(),
+                raw_to_span(vec.x, highlight_x),
+                ", ".into(),
+                raw_to_span(vec.y, highlight_y),
+                ", ".into(),
+                raw_to_span(vec.z, highlight_z),
+                ")".into(),
+            ]);
+        }
+        SensorData::MagnetometerI16(vec) => {
+            let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
+
+            line.extend(vec![
+                Span::styled("mag", Style::default().cyan()),
+                "  = (".into(),
+                raw_to_span(vec.x, highlight_x),
+                ", ".into(),
+                raw_to_span(vec.y, highlight_y),
+                ", ".into(),
+                raw_to_span(vec.z, highlight_z),
+                ")".into(),
+            ]);
+        }
+        SensorData::TemperatureI16(value) => {
+            line.extend(vec![
+                Span::styled("temp", Style::default().cyan()),
+                " = ".into(),
+                raw_to_span(value.value, false),
                 "°C".into(),
             ]);
         }

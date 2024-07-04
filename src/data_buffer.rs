@@ -92,9 +92,14 @@ impl SensorDataBuffer {
         map.keys().cloned().collect()
     }
 
-    pub fn get_latest_by_sensor(&self, id: SensorId) -> Option<Version1DataFrame> {
+    pub fn get_latest_by_sensor(&self, id: &SensorId) -> Option<Version1DataFrame> {
         let map = self.by_sensor.read().expect("failed to lock");
-        map.get(&id).and_then(|entry| entry.get_latest())
+        map.get(id).and_then(|entry| entry.get_latest())
+    }
+
+    pub fn get_average_duration_by_sensor(&self, id: &SensorId) -> Option<Duration> {
+        let map = self.by_sensor.read().expect("failed to lock");
+        map.get(id).map(|entry| entry.average_duration())
     }
 }
 

@@ -8,7 +8,7 @@ use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
-use crate::components::utils::frame_data_to_line;
+use crate::components::utils::frame_data_to_line_raw;
 use crate::data_buffer::SensorDataBuffer;
 
 use super::{Component, Frame};
@@ -82,7 +82,7 @@ impl Component for StreamingLog {
                     " ".into(),
                 ];
 
-                frame_data_to_line(frame, &mut line);
+                frame_data_to_line_raw(frame, &mut line);
 
                 Line::from(line)
             })

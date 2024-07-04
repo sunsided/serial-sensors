@@ -51,11 +51,17 @@ impl Component for Sensors {
 
         let rows: Vec<Line> = sensors
             .into_iter()
-            .map(|id| (id.clone(), self.receiver.get_latest_by_sensor(id)))
+            .map(|id| (id.clone(), self.receiver.get_latest_by_sensor(&id)))
             .filter(|(_, frame)| frame.is_some())
             .map(|(id, frame)| (id, frame.expect("value exists")))
             .enumerate()
             .map(|(no, (id, frame))| {
+                let avg_duration = self
+                    .receiver
+                    .get_average_duration_by_sensor(&id)
+                    .unwrap_or_default();
+                let fps = avg_duration.as_secs_f32().recip();
+
                 let mut lines = vec![
                     Span::styled(format!("{no}"), Style::default()),
                     ": ".into(),
@@ -72,7 +78,9 @@ impl Component for Sensors {
                         format!("{:02X}", frame.value.value_type() as u8),
                         Style::default().dim(),
                     ),
-                    " ".into(),
+                    " (".into(),
+                    Span::styled(format!("{:2.2}", fps), Style::default()),
+                    " Hz) ".into(),
                 ];
 
                 frame_data_to_line(&frame, &mut lines);
