@@ -7,6 +7,7 @@ use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
+use crate::components::utils::frame_data_to_line;
 use crate::data_buffer::SensorDataBuffer;
 
 use super::{Component, Frame};
@@ -55,7 +56,7 @@ impl Component for Sensors {
             .map(|(id, frame)| (id, frame.expect("value exists")))
             .enumerate()
             .map(|(no, (id, frame))| {
-                vec![
+                let mut lines = vec![
                     Span::styled(format!("{no}"), Style::default()),
                     ": ".into(),
                     Span::styled(id.tag().to_string(), Style::default().yellow()),
@@ -72,7 +73,10 @@ impl Component for Sensors {
                         Style::default().dim(),
                     ),
                     " ".into(),
-                ]
+                ];
+
+                frame_data_to_line(&frame, &mut lines);
+                lines
             })
             .map(|lines| lines.into())
             .collect();

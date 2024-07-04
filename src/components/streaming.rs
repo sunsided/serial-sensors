@@ -5,11 +5,10 @@ use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::SensorData;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
-use crate::components::utils::{axis_to_span, highlight_axis_3};
+use crate::components::utils::frame_data_to_line;
 use crate::data_buffer::SensorDataBuffer;
 
 use super::{Component, Frame};
@@ -83,42 +82,7 @@ impl Component for StreamingLog {
                     " ".into(),
                 ];
 
-                if let SensorData::AccelerometerI16(vec) = frame.value {
-                    let (highlight_x, highlight_y, highlight_z) =
-                        highlight_axis_3(vec.x, vec.y, vec.z);
-
-                    line.extend(vec![
-                        Span::styled("acc", Style::default().cyan()),
-                        "  = (".into(),
-                        axis_to_span(vec.x as f32 / 16384.0, highlight_x), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.y as f32 / 16384.0, highlight_y), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.z as f32 / 16384.0, highlight_z), // TODO: Don't assume normalization
-                        ")".into(),
-                    ]);
-                } else if let SensorData::MagnetometerI16(vec) = frame.value {
-                    let (highlight_x, highlight_y, highlight_z) =
-                        highlight_axis_3(vec.x, vec.y, vec.z);
-
-                    line.extend(vec![
-                        Span::styled("mag", Style::default().cyan()),
-                        "  = (".into(),
-                        axis_to_span(vec.x as f32 / 1100.0, highlight_x), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.y as f32 / 1100.0, highlight_y), // TODO: Don't assume normalization
-                        ", ".into(),
-                        axis_to_span(vec.z as f32 / 1100.0, highlight_z), // TODO: Don't assume normalization
-                        ")".into(),
-                    ]);
-                } else if let SensorData::TemperatureI16(value) = frame.value {
-                    line.extend(vec![
-                        Span::styled("temp", Style::default().cyan()),
-                        " = ".into(),
-                        axis_to_span(value.value as f32 / 8.0 + 20.0, false), // TODO: Don't assume normalization
-                        "°C".into(),
-                    ]);
-                }
+                frame_data_to_line(frame, &mut line);
 
                 Line::from(line)
             })
