@@ -52,13 +52,10 @@ impl Component for StreamingLog {
         // Fetch the actual height of the window.
         let height = rects[0].height;
 
-        // Let's not talk about this.
+        // Obtain the most recent data.
         self.recent.clear();
         let capacity = height as usize;
-        let len = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(self.receiver.clone_latest(capacity, &mut self.recent))
-        });
+        let len = self.receiver.clone_latest(capacity, &mut self.recent);
 
         let log_rows: Vec<Line> = self.recent[..len]
             .iter()

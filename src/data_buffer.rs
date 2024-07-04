@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::RwLock;
 
 use serial_sensors_proto::versions::Version1DataFrame;
-use tokio::sync::RwLock;
 
 #[derive(Debug)]
 pub struct SensorDataBuffer {
@@ -31,16 +31,16 @@ impl SensorDataBuffer {
         self.len() == 0
     }
 
-    pub async fn enqueue(&self, frame: Version1DataFrame) {
-        let mut data = self.data.write().await;
+    pub fn enqueue(&self, frame: Version1DataFrame) {
+        let mut data = self.data.write().expect("lock failed");
         data.push_front(frame);
         let max_len = data.capacity();
         data.truncate(max_len);
         self.len.store(data.len(), Ordering::SeqCst)
     }
 
-    pub async fn clone_latest(&self, count: usize, target: &mut Vec<Version1DataFrame>) -> usize {
-        let data = self.data.read().await;
+    pub fn clone_latest(&self, count: usize, target: &mut Vec<Version1DataFrame>) -> usize {
+        let data = self.data.read().expect("lock failed");
         let length = count.min(data.len());
         target.extend(data.range(..length).cloned());
         length

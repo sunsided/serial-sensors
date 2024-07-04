@@ -7,8 +7,8 @@ use clap::Parser;
 use color_eyre::eyre::Result;
 use ratatui::crossterm::ExecutableCommand;
 use ratatui::prelude::*;
+use serial_sensors_proto::{DeserializationError, deserialize, SensorData};
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
 use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
@@ -87,7 +87,7 @@ async fn decoder(
                     let first_nonzero = buffer.iter().position(|&x| x != 0).unwrap_or(buffer.len());
                     buffer.drain(0..first_nonzero);
 
-                    data_buffer.enqueue(frame.data).await;
+                    data_buffer.enqueue(frame.data);
                 }
                 Err(e) => {
                     match e {
