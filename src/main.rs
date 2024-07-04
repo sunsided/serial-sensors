@@ -1,4 +1,6 @@
 extern crate core;
+
+use clap::Parser;
 use color_eyre::eyre::Result;
 use ratatui::crossterm::ExecutableCommand;
 use ratatui::prelude::*;
@@ -7,9 +9,15 @@ use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
+use crate::app::App;
+use crate::cli::Cli;
 use crate::utils::{initialize_logging, initialize_panic_handler};
 
+mod action;
+mod app;
 mod cli;
+mod components;
+mod config;
 mod tui;
 mod utils;
 
@@ -22,7 +30,9 @@ async fn main() -> Result<()> {
     initialize_logging()?;
     initialize_panic_handler()?;
 
-    panic!("this went sideways");
+    let args = Cli::parse();
+    let mut app = App::new(args.tick_rate, args.frame_rate)?;
+    app.run().await?;
 
     /*
     // Setup terminal
