@@ -8,7 +8,9 @@ use crate::{action::Action, config::Config, tui::Event};
 
 pub mod fps;
 pub mod home;
+pub mod streaming;
 
+/// A TUI component.
 pub trait Component {
     #[allow(unused_variables)]
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {

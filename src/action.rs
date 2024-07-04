@@ -1,10 +1,8 @@
-use serde::{
-    de::{Deserializer, Visitor},
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
+use serial_sensors_proto::versions::Version1DataFrame;
 use strum::Display;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Display, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Display)]
 pub enum Action {
     Tick,
     Render,
@@ -21,6 +19,8 @@ pub enum Action {
     Increment(usize),
     Decrement(usize),
     CompleteInput(String),
+    #[serde(skip)]
+    SensorRow(Version1DataFrame),
     EnterNormal,
     EnterInsert,
     EnterProcessing,
