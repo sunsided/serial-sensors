@@ -1347,6 +1347,7 @@ dependencies = [
  "tracing",
  "tracing-error",
  "tracing-subscriber",
+ "ttl-queue",
  "tui-input",
 ]
 
@@ -1743,6 +1744,12 @@ dependencies = [
  "tracing-core",
  "tracing-log",
 ]
+
+[[package]]
+name = "ttl-queue"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7feccd2dc1c42b5789de4012370c844d0a41c2b5177077328da17e9f5c99deec"
 
 [[package]]
 name = "tui-input"

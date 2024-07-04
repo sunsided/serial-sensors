@@ -4,8 +4,8 @@ use std::sync::Arc;
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
-use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::SensorData;
+use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -24,7 +24,7 @@ impl StreamingLog {
         Self {
             action_tx: None,
             receiver,
-            recent: Vec::with_capacity(20),
+            recent: Vec::with_capacity(100),
         }
     }
 }
@@ -49,9 +49,12 @@ impl Component for StreamingLog {
             .constraints([Constraint::Percentage(100), Constraint::Min(5)].as_ref())
             .split(rect);
 
+        // Fetch the actual height of the window.
+        let height = rects[0].height;
+
         // Let's not talk about this.
         self.recent.clear();
-        let capacity = self.recent.capacity();
+        let capacity = height as usize;
         let len = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current()
                 .block_on(self.receiver.clone_latest(capacity, &mut self.recent))
@@ -97,7 +100,6 @@ impl Component for StreamingLog {
                         .borders(Borders::ALL)
                         .border_type(BorderType::Rounded),
                 )
-                .scroll((5, 0))
                 .style(Style::default().fg(Color::Gray)),
             rects[0],
         );
