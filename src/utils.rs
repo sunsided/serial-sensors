@@ -1,5 +1,7 @@
+use std::panic::PanicInfo;
 use std::path::PathBuf;
 
+use color_eyre::config::PanicHook;
 use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
@@ -39,6 +41,10 @@ fn project_directory() -> Option<ProjectDirs> {
     ProjectDirs::from("io.github", "sunsided", env!("CARGO_PKG_NAME"))
 }
 
+/// Initializes the app's custom panic handler.
+///
+/// The panic will be written via [`log::error`], so it will end up in the
+/// directory configured by [`initialize_logging`].
 pub fn initialize_panic_handler() -> Result<()> {
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
         .panic_section(format!(
@@ -59,20 +65,9 @@ pub fn initialize_panic_handler() -> Result<()> {
 
         #[cfg(not(debug_assertions))]
         {
-            use human_panic::{handle_dump, Metadata, print_msg};
-            let meta = Metadata {
-                version: env!("CARGO_PKG_VERSION").into(),
-                name: env!("CARGO_PKG_NAME").into(),
-                authors: env!("CARGO_PKG_AUTHORS").replace(':', ", ").into(),
-                homepage: env!("CARGO_PKG_HOMEPAGE").into(),
-            };
-
-            let file_path = handle_dump(&meta, panic_info);
-            // prints human-panic message
-            print_msg(file_path, &meta)
-                .expect("human-panic: printing error message to console failed");
-            eprintln!("{}", panic_hook.panic_report(panic_info)); // prints color-eyre stack trace to stderr
+            print_human_panic(&panic_hook, &panic_info);
         }
+
         let msg = format!("{}", panic_hook.panic_report(panic_info));
         log::error!("Error: {}", strip_ansi_escapes::strip_str(msg));
 
@@ -89,6 +84,22 @@ pub fn initialize_panic_handler() -> Result<()> {
         std::process::exit(libc::EXIT_FAILURE);
     }));
     Ok(())
+}
+
+#[allow(dead_code)]
+fn print_human_panic(panic_hook: &PanicHook, panic_info: &PanicInfo) {
+    use human_panic::{handle_dump, print_msg};
+    let meta = human_panic::Metadata::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+        .authors(env!("CARGO_PKG_AUTHORS").replace(':', ", "))
+        .homepage(env!("CARGO_PKG_HOMEPAGE"));
+
+    let file_path = handle_dump(&meta, panic_info);
+
+    // prints human-panic message
+    print_msg(file_path, &meta).expect("human-panic: printing error message to console failed");
+
+    // prints color-eyre stack trace to stderr
+    eprintln!("{}", panic_hook.panic_report(panic_info));
 }
 
 /// Gets the application's data directory.

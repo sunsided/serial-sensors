@@ -7,7 +7,7 @@ use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
-use crate::utils::initialize_logging;
+use crate::utils::{initialize_logging, initialize_panic_handler};
 
 mod cli;
 mod tui;
@@ -20,8 +20,9 @@ const BAUD_RATE: u32 = 1_000_000;
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     initialize_logging()?;
+    initialize_panic_handler()?;
 
-    log::info!("cool");
+    panic!("this went sideways");
 
     /*
     // Setup terminal
