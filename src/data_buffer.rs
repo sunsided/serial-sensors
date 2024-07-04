@@ -83,6 +83,12 @@ impl SensorDataBuffer {
         let sensor_id = SensorId::from(&frame);
         self.inner.enqueue(frame.clone());
 
+        // Sensor-specific buffers do not care about identification frames.
+        if let SensorData::Identification(_ident) = &frame.value {
+            // Nothing to do here.
+            return;
+        };
+
         let mut map = self.by_sensor.write().expect("failed to lock");
         map.entry(sensor_id)
             .and_modify(|entry| entry.enqueue(frame.clone()))
