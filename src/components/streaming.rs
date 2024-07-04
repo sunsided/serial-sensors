@@ -1,11 +1,14 @@
 use std::default::Default;
+use std::fmt::Display;
+use std::ops::Neg;
 use std::sync::Arc;
 
 use color_eyre::eyre::Result;
 use crossterm::event::KeyEvent;
+use num_traits::ConstZero;
 use ratatui::{prelude::*, widgets::*};
-use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::SensorData;
+use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::action::Action;
@@ -84,23 +87,17 @@ impl Component for StreamingLog {
                 ];
 
                 if let SensorData::AccelerometerI16(vec) = frame.value {
+                    let (highlight_x, highlight_y, highlight_z) =
+                        highlight_axis_3(vec.x, vec.y, vec.z);
+
                     line.extend(vec![
                         Span::styled("acc", Style::default().cyan()),
                         " = (".into(),
-                        Span::styled(
-                            (vec.x as f32 / 16384.0).to_string(),
-                            Style::default().white(),
-                        ),
+                        axis_to_span(vec.x as f32 / 16384.0, highlight_x), // TODO: Don't assume normalization
                         ", ".into(),
-                        Span::styled(
-                            (vec.y as f32 / 16384.0).to_string(),
-                            Style::default().white(),
-                        ),
+                        axis_to_span(vec.y as f32 / 16384.0, highlight_y), // TODO: Don't assume normalization
                         ", ".into(),
-                        Span::styled(
-                            (vec.z as f32 / 16384.0).to_string(),
-                            Style::default().white(),
-                        ),
+                        axis_to_span(vec.z as f32 / 16384.0, highlight_z), // TODO: Don't assume normalization
                         ")".into(),
                     ]);
                 }
@@ -124,5 +121,36 @@ impl Component for StreamingLog {
         );
 
         Ok(())
+    }
+}
+
+fn axis_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
+where
+    V: Display + 'a,
+{
+    let span = Span::styled(format!("{:+4.6}", value), Style::default());
+    if highlight {
+        span.green()
+    } else {
+        span.white()
+    }
+}
+
+fn highlight_axis_3<T>(x: T, y: T, z: T) -> (bool, bool, bool)
+where
+    T: PartialOrd + ConstZero + Neg<Output = T>,
+{
+    let x = if x > T::ZERO { x } else { -x };
+    let y = if y > T::ZERO { y } else { -y };
+    let z = if z > T::ZERO { z } else { -z };
+
+    if x > y && x > z {
+        (true, false, false)
+    } else if y > x && y > z {
+        (false, true, false)
+    } else if z > x && z > y {
+        (false, false, true)
+    } else {
+        (false, false, false)
     }
 }
