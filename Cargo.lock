@@ -1381,7 +1381,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto"
 version = "0.2.3"
-source = "git+https://github.com/sunsided/serial-sensors-proto#060b52b22f0104b792a5399517b24d5189f05491"
+source = "git+https://github.com/sunsided/serial-sensors-proto#db43a3a38a577f38e9db688dc0dcf3ce52d22086"
 dependencies = [
  "bincode",
  "corncobs",
@@ -1393,7 +1393,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto-derive"
 version = "0.2.3"
-source = "git+https://github.com/sunsided/serial-sensors-proto#060b52b22f0104b792a5399517b24d5189f05491"
+source = "git+https://github.com/sunsided/serial-sensors-proto#db43a3a38a577f38e9db688dc0dcf3ce52d22086"
 dependencies = [
  "darling",
  "proc-macro2",

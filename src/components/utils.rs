@@ -20,6 +20,18 @@ where
     }
 }
 
+pub fn axis_to_span_int<'a, V>(value: V, highlight: bool) -> Span<'a>
+where
+    V: Display + 'a,
+{
+    let span = Span::styled(format!("{:+4}", value), Style::default());
+    if highlight {
+        span.green()
+    } else {
+        span.white()
+    }
+}
+
 pub fn raw_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
 where
     V: Display + 'a,
@@ -62,27 +74,6 @@ fn sensor_id<'a>(id: &SensorId) -> Vec<Span<'a>> {
             Style::default().dim(),
         ),
     ]
-}
-
-pub fn frame_data_to_line(
-    id: &SensorId,
-    receiver: &SensorDataBuffer,
-    frame: &Version1DataFrame,
-    line: &mut Vec<Span>,
-) {
-    match frame.value {
-        SensorData::AccelerometerI16(vec) => {
-            line.extend(format_vec3(id, receiver, vec, "acc"));
-        }
-        SensorData::MagnetometerI16(vec) => {
-            line.extend(format_vec3(id, receiver, vec, "mag"));
-        }
-        SensorData::TemperatureI16(value) => {
-            line.extend(format_scalar(id, receiver, value, "temp"));
-            line.push("°C".into());
-        }
-        _ => {}
-    }
 }
 
 fn format_vec3<'a, D>(
@@ -138,6 +129,31 @@ where
         Span::styled(name, transformed),
         " = ".into(),
         axis_to_span(values[0], false),
+    ]
+}
+
+fn format_scalar_int<'a, D>(
+    id: &SensorId,
+    receiver: &SensorDataBuffer,
+    data: D,
+    name: &'a str,
+) -> Vec<Span<'a>>
+where
+    D: Into<ScalarData<i16>>,
+{
+    let scalar = data.into();
+
+    let mut values = [scalar.value as f32];
+    let transformed = if receiver.transform_values(id, &mut values) {
+        Style::default().green()
+    } else {
+        Style::default().cyan()
+    };
+
+    vec![
+        Span::styled(name, transformed),
+        " = ".into(),
+        axis_to_span_int(values[0], false),
     ]
 }
 
@@ -207,6 +223,38 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
                 " = ".into(),
                 raw_to_span(value.value, false),
             ]);
+        }
+        SensorData::HeadingI16(value) => {
+            line.extend(vec![
+                Span::styled("heading", Style::default().cyan()),
+                " = ".into(),
+                raw_to_span(value.value, false),
+            ]);
+        }
+        _ => {}
+    }
+}
+
+pub fn frame_data_to_line(
+    id: &SensorId,
+    receiver: &SensorDataBuffer,
+    frame: &Version1DataFrame,
+    line: &mut Vec<Span>,
+) {
+    match frame.value {
+        SensorData::AccelerometerI16(vec) => {
+            line.extend(format_vec3(id, receiver, vec, "acc"));
+        }
+        SensorData::MagnetometerI16(vec) => {
+            line.extend(format_vec3(id, receiver, vec, "mag"));
+        }
+        SensorData::TemperatureI16(value) => {
+            line.extend(format_scalar(id, receiver, value, "temp"));
+            line.push("°C".into());
+        }
+        SensorData::HeadingI16(value) => {
+            line.extend(format_scalar_int(id, receiver, value, "heading"));
+            line.push("°".into());
         }
         _ => {}
     }
