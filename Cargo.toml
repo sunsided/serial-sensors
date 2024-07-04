@@ -1,14 +1,46 @@
 [package]
 name = "serial-sensors"
-authors = ["Markus Mayer <widemeadows@gmail.com>"]
 version = "0.1.0"
+authors = ["Markus Mayer <widemeadows@gmail.com>"]
+homepage = "https://github.com/sunsided/serial-sensors"
+repository = "https://github.com/sunsided/serial-sensors"
 edition = "2021"
 publish = false
 
 [dependencies]
 anyhow = "1.0.86"
+clap = { version = "4.5.8", features = ["cargo", "color", "derive", "env", "string", "suggestions", "usage"] }
+color-eyre = "0.6.3"
 corncobs = "0.1.3"
+crossterm = { version = "0.27.0", features = ["event-stream", "serde"] }
+futures = "0.3.30"
+log = "0.4.22"
+ratatui = "0.27.0"
 serde = { version = "1.0.203", features = ["derive"] }
-serial-sensors-proto = { version = "0.2.1", features = ["std", "alloc", "unsafe", "quaternion", "micromath"] }
+# serial-sensors-proto = { version = "0.2.3", features = ["std", "alloc", "unsafe", "quaternion", "micromath"] }
+serial-sensors-proto = { git = "https://github.com/sunsided/serial-sensors-proto", features = ["std", "alloc", "unsafe", "quaternion", "micromath"] }
+signal-hook = "0.3.17"
 tokio = { version = "1.38.0", features = ["full"] }
 tokio-serial = "5.4.4"
+tokio-util = "0.7.11"
+lazy_static = "1.5.0"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["serde", "env-filter"] }
+libc = "0.2.155"
+directories = "5.0.1"
+tracing-error = "0.2.0"
+strip-ansi-escapes = "0.2.0"
+better-panic = "0.3.0"
+dotenvy = "0.15.7"
+human-panic = "2.0.0"
+config = "0.14.0"
+strum = "0.26.3"
+tui-input = { version = "0.9.0", features = ["serde"] }
+derive_deref = "1.1.1"
+serde_json = "1.0.120"
+json5 = "0.4.1"
+ttl-queue = "0.2.0"
+num-traits = "0.2.19"
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"

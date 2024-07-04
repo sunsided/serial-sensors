@@ -1,18 +1,46 @@
 extern crate core;
+
+use std::sync::Arc;
 use std::time::Duration;
 
-use serial_sensors_proto::{deserialize, DeserializationError, SensorData};
-use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use clap::Parser;
+use color_eyre::eyre::Result;
+pub use ratatui::prelude::*;
+use serial_sensors_proto::{deserialize, DeserializationError};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
+use crate::app::App;
+use crate::cli::Cli;
+use crate::data_buffer::SensorDataBuffer;
+use crate::utils::{initialize_logging, initialize_panic_handler};
+
+mod action;
+mod app;
+mod cli;
+mod components;
+mod config;
+mod data_buffer;
+mod fps_counter;
+mod tui;
+mod utils;
+
+const PORT_NAME: &str = "/dev/ttyACM0";
+const BAUD_RATE: u32 = 1_000_000;
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let port_name = "/dev/ttyACM0";
-    let baud_rate = 1_000_000;
+async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+    initialize_logging()?;
+    initialize_panic_handler()?;
+
+    let args = Cli::parse();
+
+    let buffer = Arc::new(SensorDataBuffer::default());
 
     // Open the serial port
-    let port = tokio_serial::new(port_name, baud_rate)
+    let port = tokio_serial::new(PORT_NAME, BAUD_RATE)
         .data_bits(DataBits::Eight)
         .flow_control(FlowControl::None)
         .parity(Parity::None)
@@ -22,44 +50,26 @@ async fn main() -> anyhow::Result<()> {
         .expect("Failed to open port");
 
     let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
-    let (command, to_device) = unbounded_channel::<String>();
+    let (_command, to_device) = unbounded_channel::<String>();
+    // let (decoder_send, decoded_event) = unbounded_channel::<Version1DataFrame>();
+
+    // Spawn a decoder thread.
+    tokio::spawn(decoder(receiver, buffer.clone()));
 
     // Spawn a thread for reading data from the serial port
-    let cdc_handle = tokio::spawn(handle_data_recv(port, from_device, to_device));
+    tokio::spawn(handle_data_recv(port, from_device, to_device));
 
-    // Spawn a task for reading from stdin and sending commands
-    let stdin_handle = tokio::spawn(handle_std_input(command));
-
-    let stdout_handle = tokio::spawn(process_incoming_data(receiver));
-
-    tokio::select! {
-        result1 = cdc_handle => {
-            match result1 {
-                Ok(result) => match result {
-                    Ok(_) => println!("CDC task completed successfully"),
-                    Err(e) => eprintln!("CDC task returned an error: {}", e),
-                },
-                Err(e) => eprintln!("CDC task panicked: {}", e),
-            }
-        },
-        result2 = stdin_handle => {
-            match result2 {
-                Ok(_) => {},
-                Err(e) => eprintln!("Standard input panicked: {}", e),
-            }
-        },
-        result2 = stdout_handle => {
-            match result2 {
-                Ok(_) => {},
-                Err(e) => eprintln!("Standard output panicked: {}", e),
-            }
-        }
-    };
+    // Run the app.
+    let mut app = App::new(args.tick_rate, args.frame_rate, buffer)?;
+    app.run().await?;
 
     Ok(())
 }
 
-async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
+async fn decoder(
+    mut receiver: UnboundedReceiver<Vec<u8>>,
+    data_buffer: Arc<SensorDataBuffer>,
+) -> anyhow::Result<()> {
     // Main loop for printing input from the serial line.
     let mut buffer = Vec::with_capacity(1024);
     loop {
@@ -76,63 +86,25 @@ async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
                     let first_nonzero = buffer.iter().position(|&x| x != 0).unwrap_or(buffer.len());
                     buffer.drain(0..first_nonzero);
 
-                    print!(
-                        "In: {}, {}:{} {:02X}:{:02X} ",
-                        frame.data.global_sequence,
-                        frame.data.sensor_tag,
-                        frame.data.sensor_sequence,
-                        frame.data.value.sensor_type_id(),
-                        frame.data.value.value_type() as u8,
-                    );
-
-                    match frame.data.value {
-                        SensorData::AccelerometerI16(vec) => {
-                            println!(
-                                "acc = ({}, {}, {})",
-                                vec.x as f32 / 16384.0,
-                                vec.y as f32 / 16384.0,
-                                vec.z as f32 / 16384.0
-                            )
-                        }
-                        SensorData::MagnetometerI16(vec) => {
-                            println!("mag = ({}, {}, {})", vec.x, vec.y, vec.z)
-                        }
-                        SensorData::TemperatureI16(value) => {
-                            println!("temp = {} °C", value.value as f32 / 8.0 + 20.0)
-                        }
-                        other => eprintln!("{other:?}"),
-                    }
+                    data_buffer.enqueue(frame.data);
                 }
                 Err(e) => {
                     match e {
                         DeserializationError::Truncated => {
                             // ignored; this is a synchronization issue
-                            eprintln!("truncated");
+                            log::warn!("Received data was truncated");
                         }
                         DeserializationError::Corrupt => {
                             // ignored
-                            eprintln!("corrupt");
+                            log::error!("Received data was corrupt");
                         }
                         DeserializationError::BincodeError(e) => {
-                            eprintln!("Binary coding error: {e}");
+                            log::error!("Binary coding error detected: {e}");
                             buffer.clear();
                         }
                     }
                 }
             }
-        }
-    }
-}
-
-async fn handle_std_input(command: UnboundedSender<String>) {
-    let stdin = io::stdin();
-    let reader = BufReader::new(stdin);
-    let mut lines = reader.lines();
-
-    while let Some(line) = lines.next_line().await.unwrap_or(None) {
-        let line = line.trim().to_string();
-        if !line.is_empty() {
-            command.send(line).unwrap();
         }
     }
 }
