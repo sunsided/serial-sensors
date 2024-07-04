@@ -31,6 +31,7 @@ pub struct App {
     pub components: Vec<Box<dyn Component>>,
     pub should_quit: bool,
     pub should_suspend: bool,
+    pub should_pause: bool,
     pub last_tick_key_events: Vec<KeyEvent>,
 }
 
@@ -47,6 +48,7 @@ impl App {
             components: vec![Box::new(sensors), Box::new(streaming), Box::new(fps)],
             should_quit: false,
             should_suspend: false,
+            should_pause: false,
             config,
             last_tick_key_events: Vec::new(),
         })
@@ -85,6 +87,14 @@ impl App {
                             || key == KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)
                         {
                             action_tx.send(Action::Quit)?;
+                        } else if key == KeyEvent::from(KeyCode::Pause)
+                            || key == KeyEvent::from(KeyCode::Char(' '))
+                        {
+                            if self.should_pause {
+                                action_tx.send(Action::Unpause)?;
+                            } else {
+                                action_tx.send(Action::Pause)?;
+                            }
                         }
                     }
                     _ => {}
@@ -108,6 +118,8 @@ impl App {
                     Action::Quit => self.should_quit = true,
                     Action::Suspend => self.should_suspend = true,
                     Action::Resume => self.should_suspend = false,
+                    Action::Pause => self.should_pause = true,
+                    Action::Unpause => self.should_pause = false,
                     Action::Resize(w, h) => {
                         tui.resize(Rect::new(0, 0, w, h))?;
                         self.draw_components(&action_tx, &mut tui)?;

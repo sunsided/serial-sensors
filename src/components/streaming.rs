@@ -2,7 +2,6 @@ use std::default::Default;
 use std::sync::Arc;
 
 use color_eyre::eyre::Result;
-use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
 use serial_sensors_proto::versions::Version1DataFrame;
 use tokio::sync::mpsc::UnboundedSender;
@@ -17,6 +16,7 @@ pub struct StreamingLog {
     action_tx: Option<UnboundedSender<Action>>,
     receiver: Arc<SensorDataBuffer>,
     recent: Vec<Version1DataFrame>,
+    should_pause: bool,
 }
 
 impl StreamingLog {
@@ -26,6 +26,7 @@ impl StreamingLog {
             action_tx: None,
             receiver,
             recent: Vec::with_capacity(capacity),
+            should_pause: false,
         }
     }
 }
@@ -36,12 +37,12 @@ impl Component for StreamingLog {
         Ok(())
     }
 
-    fn handle_key_events(&mut self, _key: KeyEvent) -> Result<Option<Action>> {
-        // TODO: Add action to clear the buffer?
-        Ok(None)
-    }
-
-    fn update(&mut self, _action: Action) -> Result<Option<Action>> {
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        match action {
+            Action::Pause => self.should_pause = true,
+            Action::Unpause => self.should_pause = false,
+            _ => {}
+        }
         Ok(None)
     }
 
@@ -55,9 +56,13 @@ impl Component for StreamingLog {
         let height = rects[1].height;
 
         // Obtain the most recent data.
-        self.recent.clear();
         let capacity = height as usize;
-        let len = self.receiver.clone_latest(capacity, &mut self.recent);
+        let len = if !self.should_pause {
+            self.recent.clear();
+            self.receiver.clone_latest(capacity, &mut self.recent)
+        } else {
+            self.recent.len()
+        };
 
         let log_rows: Vec<Line> = self.recent[..len]
             .iter()

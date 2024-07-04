@@ -2,7 +2,6 @@ use std::default::Default;
 use std::sync::Arc;
 
 use color_eyre::eyre::Result;
-use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -30,11 +29,6 @@ impl Component for Sensors {
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.action_tx = Some(tx);
         Ok(())
-    }
-
-    fn handle_key_events(&mut self, _key: KeyEvent) -> Result<Option<Action>> {
-        // TODO: Add action to clear the buffer?
-        Ok(None)
     }
 
     fn update(&mut self, _action: Action) -> Result<Option<Action>> {

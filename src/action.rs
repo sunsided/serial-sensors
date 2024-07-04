@@ -8,6 +8,8 @@ pub enum Action {
     Resize(u16, u16),
     Suspend,
     Resume,
+    Pause,
+    Unpause,
     Quit,
     Refresh,
     Error(String),
