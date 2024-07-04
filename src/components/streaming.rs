@@ -14,6 +14,7 @@ use crate::data_buffer::SensorDataBuffer;
 use super::{Component, Frame};
 
 pub struct StreamingLog {
+    capacity: usize,
     action_tx: Option<UnboundedSender<Action>>,
     receiver: Arc<SensorDataBuffer>,
     recent: Vec<Version1DataFrame>,
@@ -21,10 +22,12 @@ pub struct StreamingLog {
 
 impl StreamingLog {
     pub fn new(receiver: Arc<SensorDataBuffer>) -> Self {
+        let capacity = receiver.capacity().min(60);
         Self {
+            capacity,
             action_tx: None,
             receiver,
-            recent: Vec::with_capacity(100),
+            recent: Vec::with_capacity(capacity),
         }
     }
 }

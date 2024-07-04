@@ -1371,8 +1371,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45b4372b6753acdd7a68858d8cf153196b427d672d091f397972a979d05be81a"
+source = "git+https://github.com/sunsided/serial-sensors-proto#d5de46670cfa186222d91b4be253d4a13d9169af"
 dependencies = [
  "bincode",
  "corncobs",
@@ -1384,8 +1383,7 @@ dependencies = [
 [[package]]
 name = "serial-sensors-proto-derive"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41d97f1f94f7b0a0529cb82fcee99436e13c50c9c138233c97d6b92537562343"
+source = "git+https://github.com/sunsided/serial-sensors-proto#d5de46670cfa186222d91b4be253d4a13d9169af"
 dependencies = [
  "darling",
  "proc-macro2",
