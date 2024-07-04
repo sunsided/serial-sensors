@@ -4,8 +4,9 @@ use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::RwLock;
 use std::time::Duration;
 
+use serial_sensors_proto::types::LinearRangeInfo;
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{DataFrame, SensorId};
+use serial_sensors_proto::{DataFrame, SensorData, SensorId};
 
 use crate::fps_counter::FpsCounter;
 
@@ -24,6 +25,7 @@ struct InnerSensorDataBuffer {
     fps: FpsCounter,
     sequence: AtomicU32,
     num_skipped: AtomicU32,
+    calibration: Option<LinearRangeInfo>,
 }
 
 impl Default for SensorDataBuffer {
@@ -55,6 +57,7 @@ impl Default for InnerSensorDataBuffer {
             fps: FpsCounter::default(),
             sequence: AtomicU32::new(0),
             num_skipped: AtomicU32::new(0),
+            calibration: None,
         }
     }
 }
@@ -82,16 +85,15 @@ impl SensorDataBuffer {
     }
 
     pub fn enqueue(&self, frame: Version1DataFrame) {
-        let sensor_id = SensorId::from(&frame);
-
         let mut inner = self.inner.write().expect("failed to lock");
         inner.enqueue(frame.clone());
 
-        // Sensor-specific buffers do not care about identification frames.
-        if frame.is_meta() {
-            // Nothing to do here.
+        // Meta frames need to be rewired. We use a helper function for that.
+        let sensor_id = frame.target();
+        if sensor_id.tag() == 0 {
+            // Skip the board, as it's not a sensor.
             return;
-        };
+        }
 
         let mut map = self.by_sensor.write().expect("failed to lock");
         map.entry(sensor_id)
@@ -133,6 +135,19 @@ impl SensorDataBuffer {
         let map = self.by_sensor.read().expect("failed to lock");
         map.get(id).map(|entry| entry.skipped()).unwrap_or(0)
     }
+
+    pub fn transform_values(&self, id: &SensorId, values: &mut [f32]) -> bool {
+        let map = self.by_sensor.read().expect("failed to lock");
+        map.get(id)
+            .and_then(|entry| entry.calibration.as_ref())
+            .map(|info| {
+                for value in values.iter_mut() {
+                    *value = info.transform(*value);
+                }
+                true
+            })
+            .unwrap_or(false)
+    }
 }
 
 impl InnerSensorDataBuffer {
@@ -149,6 +164,10 @@ impl InnerSensorDataBuffer {
     pub fn enqueue(&mut self, frame: Version1DataFrame) {
         // Sensor-specific buffers do not care about identification frames.
         if self.sensor_specific && frame.is_meta() {
+            if let SensorData::LinearRanges(calibration) = frame.value {
+                self.calibration = Some(calibration);
+            }
+
             return;
         }
 

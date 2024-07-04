@@ -85,7 +85,7 @@ impl Component for Sensors {
                     " Hz) ".into(),
                 ];
 
-                frame_data_to_line(&frame, &mut lines);
+                frame_data_to_line(&id, &self.receiver, &frame, &mut lines);
                 lines
             })
             .map(|lines| lines.into())

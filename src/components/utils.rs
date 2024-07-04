@@ -4,7 +4,9 @@ use std::ops::Neg;
 use num_traits::ConstZero;
 use ratatui::prelude::*;
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{IdentifierCode, SensorData, SensorId};
+use serial_sensors_proto::{IdentifierCode, SensorData, SensorId, Vector3Data};
+
+use crate::data_buffer::SensorDataBuffer;
 
 pub fn axis_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
 where
@@ -62,35 +64,18 @@ fn sensor_id<'a>(id: &SensorId) -> Vec<Span<'a>> {
     ]
 }
 
-pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
+pub fn frame_data_to_line(
+    id: &SensorId,
+    receiver: &SensorDataBuffer,
+    frame: &Version1DataFrame,
+    line: &mut Vec<Span>,
+) {
     match frame.value {
         SensorData::AccelerometerI16(vec) => {
-            let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
-
-            line.extend(vec![
-                Span::styled("acc", Style::default().cyan()),
-                " = (".into(),
-                axis_to_span(vec.x as f32 / 16384.0, highlight_x), // TODO: Don't assume normalization
-                ", ".into(),
-                axis_to_span(vec.y as f32 / 16384.0, highlight_y), // TODO: Don't assume normalization
-                ", ".into(),
-                axis_to_span(vec.z as f32 / 16384.0, highlight_z), // TODO: Don't assume normalization
-                ")".into(),
-            ]);
+            line.extend(format_vec3(id, receiver, vec, "acc"));
         }
         SensorData::MagnetometerI16(vec) => {
-            let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
-
-            line.extend(vec![
-                Span::styled("mag", Style::default().cyan()),
-                " = (".into(),
-                axis_to_span(vec.x as f32 / 1100.0, highlight_x), // TODO: Don't assume normalization
-                ", ".into(),
-                axis_to_span(vec.y as f32 / 1100.0, highlight_y), // TODO: Don't assume normalization
-                ", ".into(),
-                axis_to_span(vec.z as f32 / 1100.0, highlight_z), // TODO: Don't assume normalization
-                ")".into(),
-            ]);
+            line.extend(format_vec3(id, receiver, vec, "mag"));
         }
         SensorData::TemperatureI16(value) => {
             line.extend(vec![
@@ -102,6 +87,37 @@ pub fn frame_data_to_line(frame: &Version1DataFrame, line: &mut Vec<Span>) {
         }
         _ => {}
     }
+}
+
+fn format_vec3<'a, D>(
+    id: &SensorId,
+    receiver: &SensorDataBuffer,
+    vec: D,
+    name: &'a str,
+) -> Vec<Span<'a>>
+where
+    D: Into<Vector3Data<i16>>,
+{
+    let vec = vec.into();
+    let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
+
+    let mut values = [vec.x as f32, vec.y as f32, vec.z as f32];
+    let transformed = if receiver.transform_values(id, &mut values) {
+        Style::default().green()
+    } else {
+        Style::default().cyan()
+    };
+
+    vec![
+        Span::styled(name, transformed),
+        " = (".into(),
+        axis_to_span(values[0], highlight_x),
+        ", ".into(),
+        axis_to_span(values[1], highlight_y),
+        ", ".into(),
+        axis_to_span(values[2], highlight_z),
+        ")".into(),
+    ]
 }
 
 pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
