@@ -1,23 +1,29 @@
 extern crate core;
-use std::time::Duration;
-
-use ratatui::crossterm::{event, ExecutableCommand, execute};
-use ratatui::crossterm::event::{DisableMouseCapture, Event, KeyCode};
-use ratatui::crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-};
+use color_eyre::eyre::Result;
+use ratatui::crossterm::ExecutableCommand;
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, Borders, Chart, Dataset, GraphType, List, ListItem, Paragraph};
 use serial_sensors_proto::{DeserializationError, deserialize, SensorData};
-use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{self, AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-use tokio_serial::SerialStream;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
+
+use crate::utils::initialize_logging;
+
+mod cli;
+mod tui;
+mod utils;
 
 const PORT_NAME: &str = "/dev/ttyACM1";
 const BAUD_RATE: u32 = 1_000_000;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+    initialize_logging()?;
+
+    log::info!("cool");
+
+    /*
     // Setup terminal
     let mut stdout = std::io::stdout();
     stdout.execute(EnterAlternateScreen)?;
@@ -89,15 +95,6 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    disable_raw_mode()?;
-    terminal.show_cursor()?;
-
-    /*
     // Open the serial port
     let port = tokio_serial::new(PORT_NAME, BAUD_RATE)
         .data_bits(DataBits::Eight)
@@ -109,19 +106,17 @@ async fn main() -> anyhow::Result<()> {
         .expect("Failed to open port");
 
     let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
-    let (command, to_device) = unbounded_channel::<String>();
+    let (_command, to_device) = unbounded_channel::<String>();
 
     // Spawn a thread for reading data from the serial port
     let cdc_handle = tokio::spawn(handle_data_recv(port, from_device, to_device));
 
-    // Spawn a task for reading from stdin and sending commands
-    let stdin_handle = tokio::spawn(handle_std_input(command));
-
-    let stdout_handle = tokio::spawn(process_incoming_data(receiver));
+    // Handle the display of the data.
+    let stdout_handle = tokio::spawn(process_terminal(receiver));
 
     tokio::select! {
-        result1 = cdc_handle => {
-            match result1 {
+        result = cdc_handle => {
+            match result {
                 Ok(result) => match result {
                     Ok(_) => println!("CDC task completed successfully"),
                     Err(e) => eprintln!("CDC task returned an error: {}", e),
@@ -129,25 +124,27 @@ async fn main() -> anyhow::Result<()> {
                 Err(e) => eprintln!("CDC task panicked: {}", e),
             }
         },
-        result2 = stdin_handle => {
-            match result2 {
-                Ok(_) => {},
-                Err(e) => eprintln!("Standard input panicked: {}", e),
-            }
-        },
-        result2 = stdout_handle => {
-            match result2 {
+        result = stdout_handle => {
+            match result {
                 Ok(_) => {},
                 Err(e) => eprintln!("Standard output panicked: {}", e),
             }
         }
     };
+
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture,
+    )?;
+    disable_raw_mode()?;
+    terminal.show_cursor()?;
     */
 
     Ok(())
 }
 
-async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
+async fn process_terminal(mut receiver: UnboundedReceiver<Vec<u8>>) {
     // Main loop for printing input from the serial line.
     let mut buffer = Vec::with_capacity(1024);
     loop {
@@ -208,19 +205,6 @@ async fn process_incoming_data(mut receiver: UnboundedReceiver<Vec<u8>>) {
                     }
                 }
             }
-        }
-    }
-}
-
-async fn handle_std_input(command: UnboundedSender<String>) {
-    let stdin = io::stdin();
-    let reader = BufReader::new(stdin);
-    let mut lines = reader.lines();
-
-    while let Some(line) = lines.next_line().await.unwrap_or(None) {
-        let line = line.trim().to_string();
-        if !line.is_empty() {
-            command.send(line).unwrap();
         }
     }
 }
