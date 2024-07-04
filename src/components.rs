@@ -9,6 +9,7 @@ use crate::{action::Action, config::Config, tui::Event};
 pub mod fps;
 pub mod sensors;
 pub mod streaming;
+pub mod utils;
 
 /// A TUI component.
 pub trait Component {
