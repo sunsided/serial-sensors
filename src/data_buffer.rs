@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use serial_sensors_proto::types::LinearRangeInfo;
 use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{DataFrame, SensorData, SensorId};
+use serial_sensors_proto::{DataFrame, IdentifierCode, SensorData, SensorId};
 
 use crate::fps_counter::FpsCounter;
 
@@ -26,6 +26,8 @@ struct InnerSensorDataBuffer {
     sequence: AtomicU32,
     num_skipped: AtomicU32,
     calibration: Option<LinearRangeInfo>,
+    maker: String,
+    product: String,
 }
 
 impl Default for SensorDataBuffer {
@@ -42,22 +44,6 @@ impl InnerSensorDataBuffer {
         Self {
             sensor_specific,
             ..Default::default()
-        }
-    }
-}
-
-impl Default for InnerSensorDataBuffer {
-    fn default() -> Self {
-        let capacity = 100;
-        Self {
-            sensor_specific: true,
-            capacity,
-            data: VecDeque::with_capacity(capacity),
-            len: AtomicUsize::new(0),
-            fps: FpsCounter::default(),
-            sequence: AtomicU32::new(0),
-            num_skipped: AtomicU32::new(0),
-            calibration: None,
         }
     }
 }
@@ -136,6 +122,13 @@ impl SensorDataBuffer {
         map.get(id).map(|entry| entry.skipped()).unwrap_or(0)
     }
 
+    pub fn get_sensor_name(&self, id: &SensorId) -> String {
+        let map = self.by_sensor.read().expect("failed to lock");
+        map.get(id)
+            .map(|entry| entry.product.clone())
+            .unwrap_or_default()
+    }
+
     pub fn transform_values(&self, id: &SensorId, values: &mut [f32]) -> bool {
         let map = self.by_sensor.read().expect("failed to lock");
         map.get(id)
@@ -147,6 +140,24 @@ impl SensorDataBuffer {
                 true
             })
             .unwrap_or(false)
+    }
+}
+
+impl Default for InnerSensorDataBuffer {
+    fn default() -> Self {
+        let capacity = 100;
+        Self {
+            sensor_specific: true,
+            maker: String::new(),
+            product: String::new(),
+            capacity,
+            data: VecDeque::with_capacity(capacity),
+            len: AtomicUsize::new(0),
+            fps: FpsCounter::default(),
+            sequence: AtomicU32::new(0),
+            num_skipped: AtomicU32::new(0),
+            calibration: None,
+        }
     }
 }
 
@@ -166,6 +177,17 @@ impl InnerSensorDataBuffer {
         if self.sensor_specific && frame.is_meta() {
             if let SensorData::LinearRanges(calibration) = frame.value {
                 self.calibration = Some(calibration);
+            } else if let SensorData::Identification(ident) = frame.value {
+                match ident.code {
+                    IdentifierCode::Generic => {}
+                    IdentifierCode::Maker => {
+                        self.maker = String::from(ident.as_str().unwrap_or("").trim())
+                    }
+                    IdentifierCode::Product => {
+                        self.product = String::from(ident.as_str().unwrap_or("").trim())
+                    }
+                    IdentifierCode::Revision => {}
+                }
             }
 
             return;

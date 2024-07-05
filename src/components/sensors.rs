@@ -63,10 +63,18 @@ impl Component for Sensors {
                     "".into()
                 };
 
+                let name = self.receiver.get_sensor_name(&id);
+                let name = if !name.is_empty() {
+                    Span::styled(name, Style::default().white().underlined())
+                } else {
+                    "unknown".into()
+                };
+
                 let mut lines = vec![
                     Span::styled(format!("{no}"), Style::default()),
                     ": ".into(),
-                    Span::styled(id.tag().to_string(), Style::default().yellow()),
+                    name,
+                    Span::styled(format!(" {}", id.tag()), Style::default().yellow()),
                     ":".into(),
                     Span::styled(frame.sensor_sequence.to_string(), Style::default().dim()),
                     skipped,
