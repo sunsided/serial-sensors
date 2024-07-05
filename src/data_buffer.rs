@@ -129,13 +129,13 @@ impl SensorDataBuffer {
             .unwrap_or_default()
     }
 
-    pub fn transform_values(&self, id: &SensorId, values: &mut [f32]) -> bool {
+    pub fn convert_values(&self, id: &SensorId, values: &mut [f32]) -> bool {
         let map = self.by_sensor.read().expect("failed to lock");
         map.get(id)
             .and_then(|entry| entry.calibration.as_ref())
             .map(|info| {
                 for value in values.iter_mut() {
-                    *value = info.transform(*value);
+                    *value = info.convert(*value);
                 }
                 true
             })

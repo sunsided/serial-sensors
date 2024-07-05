@@ -89,7 +89,7 @@ where
     let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
 
     let mut values = [vec.x as f32, vec.y as f32, vec.z as f32];
-    let transformed = if receiver.transform_values(id, &mut values) {
+    let transformed = if receiver.convert_values(id, &mut values) {
         Style::default().green()
     } else {
         Style::default().cyan()
@@ -119,7 +119,7 @@ where
     let scalar = data.into();
 
     let mut values = [scalar.value as f32];
-    let transformed = if receiver.transform_values(id, &mut values) {
+    let transformed = if receiver.convert_values(id, &mut values) {
         Style::default().green()
     } else {
         Style::default().cyan()
@@ -144,7 +144,7 @@ where
     let scalar = data.into();
 
     let mut values = [scalar.value as f32];
-    let transformed = if receiver.transform_values(id, &mut values) {
+    let transformed = if receiver.convert_values(id, &mut values) {
         Style::default().green()
     } else {
         Style::default().cyan()
