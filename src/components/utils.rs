@@ -8,16 +8,11 @@ use serial_sensors_proto::{IdentifierCode, ScalarData, SensorData, SensorId, Vec
 
 use crate::data_buffer::SensorDataBuffer;
 
-pub fn axis_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
+pub fn axis_to_span<'a, V>(value: V, highlight: Max) -> Span<'a>
 where
     V: Display + 'a,
 {
-    let span = Span::styled(format!("{:+4.6}", value), Style::default());
-    if highlight {
-        span.green()
-    } else {
-        span.white()
-    }
+    Span::styled(format!("{:+4.6}", value), highlight.to_style())
 }
 
 pub fn axis_to_span_int<'a, V>(value: V, highlight: bool) -> Span<'a>
@@ -32,34 +27,74 @@ where
     }
 }
 
-pub fn raw_to_span<'a, V>(value: V, highlight: bool) -> Span<'a>
+pub fn raw_to_span<'a, V>(value: V, highlight: Max) -> Span<'a>
 where
     V: Display + 'a,
 {
-    let span = Span::styled(format!("{:+4.6}", value), Style::default());
-    if highlight {
-        span.white()
-    } else {
-        span.gray()
-    }
+    Span::styled(format!("{:+4.6}", value), highlight.to_style_dim())
 }
 
-pub fn highlight_axis_3<T>(x: T, y: T, z: T) -> (bool, bool, bool)
+pub fn highlight_axis_3<T>(x: T, y: T, z: T) -> (Max, Max, Max)
 where
     T: PartialOrd + ConstZero + Neg<Output = T>,
 {
-    let x = if x > T::ZERO { x } else { -x };
-    let y = if y > T::ZERO { y } else { -y };
-    let z = if z > T::ZERO { z } else { -z };
+    // Fake abs.
+    let (x, x_pos) = if x > T::ZERO { (x, true) } else { (-x, false) };
+    let (y, y_pos) = if y > T::ZERO { (y, true) } else { (-y, false) };
+    let (z, z_pos) = if z > T::ZERO { (z, true) } else { (-z, false) };
 
     if x > y && x > z {
-        (true, false, false)
+        (Max::Positive.flip_if(!x_pos), Max::None, Max::None)
     } else if y > x && y > z {
-        (false, true, false)
+        (Max::None, Max::Positive.flip_if(!y_pos), Max::None)
     } else if z > x && z > y {
-        (false, false, true)
+        (Max::None, Max::None, Max::Positive.flip_if(!z_pos))
     } else {
-        (false, false, false)
+        (Max::None, Max::None, Max::None)
+    }
+}
+
+pub enum Max {
+    None,
+    Negative,
+    Positive,
+}
+
+impl Max {
+    fn to_style(&self) -> Style {
+        match self {
+            Max::None => Style::default().white(),
+            Max::Negative => Style::default().yellow().underlined(),
+            Max::Positive => Style::default().green().underlined(),
+        }
+    }
+
+    fn to_style_dim(&self) -> Style {
+        match self {
+            Max::None => Style::default().dim(),
+            Max::Negative => Style::default().white(),
+            Max::Positive => Style::default().white(),
+        }
+    }
+
+    fn flip_if(self, flip: bool) -> Self {
+        match self {
+            Max::None => Max::None,
+            Max::Negative => {
+                if flip {
+                    Max::Positive
+                } else {
+                    Max::Negative
+                }
+            }
+            Max::Positive => {
+                if flip {
+                    Max::Negative
+                } else {
+                    Max::Positive
+                }
+            }
+        }
     }
 }
 
@@ -128,7 +163,7 @@ where
     vec![
         Span::styled(name, transformed),
         " = ".into(),
-        axis_to_span(values[0], false),
+        axis_to_span(values[0], Max::None),
     ]
 }
 
@@ -221,14 +256,14 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
             line.extend(vec![
                 Span::styled("temp", Style::default().cyan()),
                 " = ".into(),
-                raw_to_span(value.value, false),
+                raw_to_span(value.value, Max::None),
             ]);
         }
         SensorData::HeadingI16(value) => {
             line.extend(vec![
                 Span::styled("heading", Style::default().cyan()),
                 " = ".into(),
-                raw_to_span(value.value, false),
+                raw_to_span(value.value, Max::None),
             ]);
         }
         _ => {}
