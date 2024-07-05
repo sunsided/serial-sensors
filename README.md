@@ -10,6 +10,6 @@ I'm currently using it for these projects:
 * [`stm32f3disco-rust`](https://github.com/sunsided/stm32f3disco-rust)
   via [`serial-sensors-proto`](https://github.com/sunsided/serial-sensors-proto).
 
-At the moment it doesn't do much, but just dumps out the information as it comes:
+At the moment it doesn't do much: it simply dumps out the information as it comes.
 
-![](readme/picture.jpg)
+![A screenshot of the application in action](readme/picture.jpg)
