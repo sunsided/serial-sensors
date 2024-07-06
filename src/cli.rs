@@ -61,4 +61,12 @@ pub struct Dump {
         help = "The file in which to store raw data"
     )]
     pub raw: Option<PathBuf>,
+
+    #[arg(
+        short,
+        long,
+        value_name = "DIRECTORY",
+        help = "The directory in which to store data"
+    )]
+    pub dir: PathBuf,
 }
