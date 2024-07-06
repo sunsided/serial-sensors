@@ -3,6 +3,8 @@ extern crate core;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_compression::tokio::write::GzipEncoder;
+use async_compression::Level;
 use clap::Parser;
 use color_eyre::eyre::Result;
 pub use ratatui::prelude::*;
@@ -71,6 +73,12 @@ async fn main() -> Result<()> {
         Commands::Dump(args) => {
             // Intercept frames when dumping raw data.
             let receiver = if let Some(ref path) = args.raw {
+                let gzip = path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext == "gz")
+                    .unwrap_or(false);
+
                 let file = match File::create(path).await {
                     Ok(file) => file,
                     Err(e) => {
@@ -79,7 +87,11 @@ async fn main() -> Result<()> {
                 };
 
                 let (tx, raw_rx) = unbounded_channel();
-                tokio::spawn(dump_raw(file, receiver, tx));
+                if gzip {
+                    tokio::spawn(dump_raw_gzipped(file, receiver, tx));
+                } else {
+                    tokio::spawn(dump_raw(file, receiver, tx));
+                }
                 raw_rx
             } else {
                 receiver
@@ -101,13 +113,36 @@ async fn dump_raw(
     mut rx: UnboundedReceiver<Vec<u8>>,
     tx: UnboundedSender<Vec<u8>>,
 ) -> Result<()> {
-    let mut buffered_writer = BufWriter::new(file);
+    let mut writer = BufWriter::new(file);
     loop {
         if let Some(data) = rx.recv().await {
-            buffered_writer.write_all(&data).await?;
+            writer.write_all(&data).await?;
             tx.send(data)?;
         }
     }
+}
+
+async fn dump_raw_gzipped(
+    file: File,
+    mut rx: UnboundedReceiver<Vec<u8>>,
+    tx: UnboundedSender<Vec<u8>>,
+) -> Result<()> {
+    let buffered_writer = BufWriter::new(file);
+    let mut writer = GzipEncoder::with_quality(buffered_writer, Level::Default);
+    loop {
+        if let Some(data) = rx.recv().await {
+            if let Err(e) = writer.write_all(&data).await {
+                writer.flush().await.ok();
+                return Err(e.into());
+            }
+            if let Err(e) = tx.send(data) {
+                writer.flush().await.ok();
+                return Err(e.into());
+            }
+        }
+    }
+
+    // TODO: Add rendezvous on CTRL-C
 }
 
 async fn dump_data(_args: Dump, mut rx: UnboundedReceiver<Version1DataFrame>) -> Result<()> {
