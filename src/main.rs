@@ -12,7 +12,7 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
 use crate::app::App;
-use crate::cli::Cli;
+use crate::cli::{Cli, Commands};
 use crate::data_buffer::SensorDataBuffer;
 use crate::utils::{initialize_logging, initialize_panic_handler};
 
@@ -26,9 +26,6 @@ mod fps_counter;
 mod tui;
 mod utils;
 
-const PORT_NAME: &str = "/dev/ttyACM0";
-const BAUD_RATE: u32 = 1_000_000;
-
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
@@ -40,7 +37,7 @@ async fn main() -> Result<()> {
     let buffer = Arc::new(SensorDataBuffer::default());
 
     // Open the serial port
-    let port = tokio_serial::new(PORT_NAME, BAUD_RATE)
+    let port = tokio_serial::new(args.port, args.baud)
         .data_bits(DataBits::Eight)
         .flow_control(FlowControl::None)
         .parity(Parity::None)
@@ -60,8 +57,12 @@ async fn main() -> Result<()> {
     tokio::spawn(handle_data_recv(port, from_device, to_device));
 
     // Run the app.
-    let mut app = App::new(args.frame_rate, buffer)?;
-    app.run().await?;
+    match args.command {
+        Commands::Ui(args) => {
+            let mut app = App::new(args.frame_rate, buffer)?;
+            app.run().await?;
+        }
+    }
 
     Ok(())
 }
