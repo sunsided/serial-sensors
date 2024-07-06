@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 
 use crate::utils::version;
@@ -33,8 +35,10 @@ pub struct Cli {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     Ui(UiCommand),
+    Dump(Dump),
 }
 
+/// Runs a UI to visualize the incoming data stream.
 #[derive(Parser, Debug)]
 pub struct UiCommand {
     #[arg(
@@ -45,4 +49,16 @@ pub struct UiCommand {
         default_value_t = 30.0
     )]
     pub frame_rate: f64,
+}
+
+/// Dumps received data to disk.
+#[derive(Parser, Debug)]
+pub struct Dump {
+    #[arg(
+        short,
+        long,
+        value_name = "RAW_FILE",
+        help = "The file in which to store raw data"
+    )]
+    pub raw: Option<PathBuf>,
 }
