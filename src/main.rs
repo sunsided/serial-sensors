@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     tokio::spawn(handle_data_recv(port, from_device, to_device));
 
     // Run the app.
-    let mut app = App::new(args.tick_rate, args.frame_rate, buffer)?;
+    let mut app = App::new(args.frame_rate, buffer)?;
     app.run().await?;
 
     Ok(())

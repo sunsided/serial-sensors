@@ -41,12 +41,10 @@ pub struct Tui {
     pub event_rx: UnboundedReceiver<Event>,
     pub event_tx: UnboundedSender<Event>,
     pub frame_rate: f64,
-    pub tick_rate: f64,
 }
 
 impl Tui {
     pub fn new() -> Result<Self> {
-        let tick_rate = 4.0;
         let frame_rate = 60.0;
         let terminal = ratatui::Terminal::new(Backend::new(std::io::stderr()))?;
         let (event_tx, event_rx) = mpsc::unbounded_channel();
@@ -59,12 +57,7 @@ impl Tui {
             event_rx,
             event_tx,
             frame_rate,
-            tick_rate,
         })
-    }
-
-    pub fn tick_rate(&mut self, tick_rate: f64) {
-        self.tick_rate = tick_rate;
     }
 
     pub fn frame_rate(&mut self, frame_rate: f64) {
@@ -72,7 +65,6 @@ impl Tui {
     }
 
     pub fn start(&mut self) {
-        let tick_delay = Duration::from_secs_f64(1.0 / self.tick_rate);
         let render_delay = Duration::from_secs_f64(1.0 / self.frame_rate);
         self.cancel();
 
@@ -82,12 +74,10 @@ impl Tui {
 
         self.task = tokio::spawn(async move {
             let mut reader = crossterm::event::EventStream::new();
-            let mut tick_interval = tokio::time::interval(tick_delay);
             let mut render_interval = tokio::time::interval(render_delay);
             event_tx.send(Event::Init).unwrap();
 
             loop {
-                let tick_delay = tick_interval.tick();
                 let render_delay = render_interval.tick();
                 let crossterm_event = reader.next().fuse();
 
@@ -127,10 +117,6 @@ impl Tui {
                       }
                       None => {},
                     }
-                  },
-
-                  _ = tick_delay => {
-                      event_tx.send(Event::Tick).unwrap();
                   },
 
                   _ = render_delay => {
