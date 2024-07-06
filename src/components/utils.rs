@@ -1,7 +1,5 @@
 use std::fmt::Display;
-use std::ops::Neg;
 
-use num_traits::ConstZero;
 use ratatui::prelude::*;
 use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::{IdentifierCode, ScalarData, SensorData, SensorId, Vector3Data};
@@ -34,14 +32,23 @@ where
     Span::styled(format!("{:+4.6}", value), highlight.to_style_dim())
 }
 
-pub fn highlight_axis_3<T>(x: T, y: T, z: T) -> (Max, Max, Max)
-where
-    T: PartialOrd + ConstZero + Neg<Output = T>,
-{
+pub fn highlight_axis_3(x: i16, y: i16, z: i16) -> (Max, Max, Max) {
     // Fake abs.
-    let (x, x_pos) = if x > T::ZERO { (x, true) } else { (-x, false) };
-    let (y, y_pos) = if y > T::ZERO { (y, true) } else { (-y, false) };
-    let (z, z_pos) = if z > T::ZERO { (z, true) } else { (-z, false) };
+    let (x, x_pos) = if x > 0 {
+        (x, true)
+    } else {
+        (x.saturating_neg(), false)
+    };
+    let (y, y_pos) = if y > 0 {
+        (y, true)
+    } else {
+        (y.saturating_neg(), false)
+    };
+    let (z, z_pos) = if z > 0 {
+        (z, true)
+    } else {
+        (z.saturating_neg(), false)
+    };
 
     if x > y && x > z {
         (Max::Positive.flip_if(!x_pos), Max::None, Max::None)

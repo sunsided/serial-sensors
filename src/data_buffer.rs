@@ -10,6 +10,8 @@ use serial_sensors_proto::{DataFrame, IdentifierCode, SensorData, SensorId};
 
 use crate::fps_counter::FpsCounter;
 
+const BUFFER_CAP: usize = 100;
+
 #[derive(Debug)]
 pub struct SensorDataBuffer {
     inner: RwLock<InnerSensorDataBuffer>,
@@ -145,7 +147,7 @@ impl SensorDataBuffer {
 
 impl Default for InnerSensorDataBuffer {
     fn default() -> Self {
-        let capacity = 100;
+        let capacity = BUFFER_CAP;
         Self {
             sensor_specific: true,
             maker: String::new(),

@@ -6,14 +6,17 @@ use std::time::Duration;
 use clap::Parser;
 use color_eyre::eyre::Result;
 pub use ratatui::prelude::*;
+use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::{deserialize, DeserializationError};
+use tokio::fs::File;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
 use crate::app::App;
-use crate::cli::Cli;
+use crate::cli::{Cli, Commands};
 use crate::data_buffer::SensorDataBuffer;
+use crate::dumping::{dump_data, dump_raw, dump_raw_gzipped};
 use crate::utils::{initialize_logging, initialize_panic_handler};
 
 mod action;
@@ -22,14 +25,12 @@ mod cli;
 mod components;
 mod config;
 mod data_buffer;
+mod dumping;
 mod fps_counter;
 mod tui;
 mod utils;
 
-const PORT_NAME: &str = "/dev/ttyACM0";
-const BAUD_RATE: u32 = 1_000_000;
-
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     initialize_logging()?;
@@ -40,7 +41,7 @@ async fn main() -> Result<()> {
     let buffer = Arc::new(SensorDataBuffer::default());
 
     // Open the serial port
-    let port = tokio_serial::new(PORT_NAME, BAUD_RATE)
+    let port = tokio_serial::new(args.port, args.baud)
         .data_bits(DataBits::Eight)
         .flow_control(FlowControl::None)
         .parity(Parity::None)
@@ -50,25 +51,66 @@ async fn main() -> Result<()> {
         .expect("Failed to open port");
 
     let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
+    let (frames_tx, frames_rx) = unbounded_channel::<Version1DataFrame>();
     let (_command, to_device) = unbounded_channel::<String>();
     // let (decoder_send, decoded_event) = unbounded_channel::<Version1DataFrame>();
-
-    // Spawn a decoder thread.
-    tokio::spawn(decoder(receiver, buffer.clone()));
 
     // Spawn a thread for reading data from the serial port
     tokio::spawn(handle_data_recv(port, from_device, to_device));
 
     // Run the app.
-    let mut app = App::new(args.frame_rate, buffer)?;
-    app.run().await?;
+    match args.command {
+        Commands::Ui(args) => {
+            // Spawn a decoder thread.
+            tokio::spawn(decoder(receiver, frames_tx));
+
+            // Spawn a buffer thread.
+            tokio::spawn(decoder_to_buffer(frames_rx, buffer.clone()));
+
+            let mut app = App::new(args.frame_rate, buffer)?;
+            app.run().await?;
+        }
+        Commands::Dump(args) => {
+            // Intercept frames when dumping raw data.
+            let receiver = if let Some(ref path) = args.raw {
+                let gzip = path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .map(|ext| ext == "gz")
+                    .unwrap_or(false);
+
+                let file = match File::create(path).await {
+                    Ok(file) => file,
+                    Err(e) => {
+                        return Err(e.into());
+                    }
+                };
+
+                let (tx, raw_rx) = unbounded_channel();
+                if gzip {
+                    tokio::spawn(dump_raw_gzipped(file, receiver, tx));
+                } else {
+                    tokio::spawn(dump_raw(file, receiver, tx));
+                }
+                raw_rx
+            } else {
+                receiver
+            };
+
+            // Spawn a decoder thread.
+            tokio::spawn(decoder(receiver, frames_tx));
+
+            // Process frames.
+            dump_data(args.dir, frames_rx).await?;
+        }
+    }
 
     Ok(())
 }
 
 async fn decoder(
     mut receiver: UnboundedReceiver<Vec<u8>>,
-    data_buffer: Arc<SensorDataBuffer>,
+    sender: UnboundedSender<Version1DataFrame>,
 ) -> anyhow::Result<()> {
     // Main loop for printing input from the serial line.
     let mut buffer = Vec::with_capacity(1024);
@@ -86,7 +128,7 @@ async fn decoder(
                     let first_nonzero = buffer.iter().position(|&x| x != 0).unwrap_or(buffer.len());
                     buffer.drain(0..first_nonzero);
 
-                    data_buffer.enqueue(frame.data);
+                    sender.send(frame.data)?;
                 }
                 Err(e) => {
                     match e {
@@ -105,6 +147,17 @@ async fn decoder(
                     }
                 }
             }
+        }
+    }
+}
+
+async fn decoder_to_buffer(
+    mut receiver: UnboundedReceiver<Version1DataFrame>,
+    data_buffer: Arc<SensorDataBuffer>,
+) -> anyhow::Result<()> {
+    loop {
+        if let Some(data) = receiver.recv().await {
+            data_buffer.enqueue(data);
         }
     }
 }
