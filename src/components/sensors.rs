@@ -50,6 +50,9 @@ impl Component for Sensors {
             .map(|(id, frame)| (id, frame.expect("value exists")))
             .enumerate()
             .map(|(no, (id, frame))| {
+                // TODO: IF time is supported. :)
+                let time = frame.system_secs as f32 + frame.system_millis as f32 / 1000.0;
+
                 let avg_duration = self
                     .receiver
                     .get_average_duration_by_sensor(&id)
@@ -73,6 +76,8 @@ impl Component for Sensors {
                 let mut lines = vec![
                     Span::styled(format!("{no}"), Style::default()),
                     ": ".into(),
+                    Span::styled(format!("t={:3.3}", time), Style::default().dim()),
+                    " ".into(),
                     name,
                     Span::styled(format!(" {}", id.tag()), Style::default().yellow()),
                     ":".into(),

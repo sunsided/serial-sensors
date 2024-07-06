@@ -68,7 +68,12 @@ impl Component for StreamingLog {
             .iter()
             .rev()
             .map(|frame| {
+                // TODO: IF time is supported. :)
+                let time = frame.system_secs as f32 + frame.system_millis as f32 / 1000.0;
+
                 let mut line = vec![
+                    Span::styled(format!("t={:3.3}", time), Style::default().dim()),
+                    " ".into(),
                     Span::styled(frame.global_sequence.to_string(), Style::default().dim()),
                     ", ".into(),
                     Span::styled(frame.sensor_tag.to_string(), Style::default().yellow()),
