@@ -252,6 +252,20 @@ pub fn frame_data_to_line_raw(frame: &Version1DataFrame, line: &mut Vec<Span>) {
                 ")".into(),
             ]);
         }
+        SensorData::GyroscopeI16(vec) => {
+            let (highlight_x, highlight_y, highlight_z) = highlight_axis_3(vec.x, vec.y, vec.z);
+
+            line.extend(vec![
+                Span::styled("gyro", Style::default().cyan()),
+                " = (".into(),
+                raw_to_span(vec.x, highlight_x),
+                ", ".into(),
+                raw_to_span(vec.y, highlight_y),
+                ", ".into(),
+                raw_to_span(vec.z, highlight_z),
+                ")".into(),
+            ]);
+        }
         SensorData::TemperatureI16(value) => {
             line.extend(vec![
                 Span::styled("temp", Style::default().cyan()),
@@ -282,6 +296,9 @@ pub fn frame_data_to_line(
         }
         SensorData::MagnetometerI16(vec) => {
             line.extend(format_vec3(id, receiver, vec, "mag"));
+        }
+        SensorData::GyroscopeI16(vec) => {
+            line.extend(format_vec3(id, receiver, vec, "gyro"));
         }
         SensorData::TemperatureI16(value) => {
             line.extend(format_scalar(id, receiver, value, "temp"));
