@@ -26,7 +26,6 @@ pub enum Mode {
 
 pub struct App {
     pub config: Config,
-    pub tick_rate: f64,
     pub frame_rate: f64,
     pub components: Vec<Box<dyn Component>>,
     pub should_quit: bool,
@@ -36,14 +35,13 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64, receiver: Arc<SensorDataBuffer>) -> Result<Self> {
+    pub fn new(frame_rate: f64, receiver: Arc<SensorDataBuffer>) -> Result<Self> {
         let sensors = Sensors::new(receiver.clone());
         let streaming = StreamingLog::new(receiver.clone());
         let fps = FpsDisplay::new(receiver);
         let config = Config::new()?;
 
         Ok(Self {
-            tick_rate,
             frame_rate,
             components: vec![Box::new(sensors), Box::new(streaming), Box::new(fps)],
             should_quit: false,
@@ -58,7 +56,6 @@ impl App {
         let (action_tx, mut action_rx) = mpsc::unbounded_channel();
 
         let mut tui = Tui::new()?;
-        tui.tick_rate(self.tick_rate);
         tui.frame_rate(self.frame_rate);
         tui.enter()?;
 
@@ -141,7 +138,6 @@ impl App {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
                 tui = Tui::new()?;
-                tui.tick_rate(self.tick_rate);
                 tui.frame_rate(self.frame_rate);
                 tui.enter()?;
             } else if self.should_quit {
