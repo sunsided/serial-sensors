@@ -8,7 +8,7 @@ use crate::data_buffer::SensorDataBuffer;
 
 use super::Component;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FpsDisplay {
     receiver: Arc<SensorDataBuffer>,
 }

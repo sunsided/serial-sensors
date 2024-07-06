@@ -1,26 +1,26 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::default::Default;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::RwLock;
 use std::time::Duration;
 
+use ringbuf::traits::{Consumer, Observer, RingBuffer};
+use ringbuf::HeapRb;
 use serial_sensors_proto::types::LinearRangeInfo;
 use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::{DataFrame, IdentifierCode, SensorData, SensorId};
 
 use crate::fps_counter::FpsCounter;
 
-#[derive(Debug)]
 pub struct SensorDataBuffer {
     inner: RwLock<InnerSensorDataBuffer>,
     by_sensor: RwLock<HashMap<SensorId, InnerSensorDataBuffer>>,
 }
 
-#[derive(Debug)]
 struct InnerSensorDataBuffer {
     sensor_specific: bool,
     capacity: usize,
-    data: VecDeque<Version1DataFrame>,
+    data: HeapRb<Version1DataFrame>,
     len: AtomicUsize,
     fps: FpsCounter,
     sequence: AtomicU32,
@@ -151,7 +151,7 @@ impl Default for InnerSensorDataBuffer {
             maker: String::new(),
             product: String::new(),
             capacity,
-            data: VecDeque::with_capacity(capacity),
+            data: HeapRb::new(capacity),
             len: AtomicUsize::new(0),
             fps: FpsCounter::default(),
             sequence: AtomicU32::new(0),
@@ -201,17 +201,16 @@ impl InnerSensorDataBuffer {
             self.num_skipped.fetch_add(1, Ordering::SeqCst);
         }
 
-        data.push_front(frame);
-        let max_len = self.capacity;
-        data.truncate(max_len);
-        self.len.store(data.len(), Ordering::SeqCst);
+        // TODO: This changes the order compared to the VecDeque.
+        data.push_overwrite(frame);
+        self.len.store(data.occupied_len(), Ordering::SeqCst);
         self.fps.mark();
     }
 
     pub fn clone_latest(&self, count: usize, target: &mut Vec<Version1DataFrame>) -> usize {
         let data = &self.data;
-        let length = count.min(data.len());
-        target.extend(data.range(..length).cloned());
+        let length = count.min(data.occupied_len());
+        target.extend(data.iter().rev().take(length).cloned());
         length
     }
 
@@ -227,6 +226,6 @@ impl InnerSensorDataBuffer {
 
     /// Gets the latest record.
     pub fn get_latest(&self) -> Option<Version1DataFrame> {
-        self.data.front().cloned()
+        self.data.first().cloned()
     }
 }
