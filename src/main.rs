@@ -8,7 +8,8 @@ use color_eyre::eyre::Result;
 pub use ratatui::prelude::*;
 use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::{deserialize, DeserializationError};
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::fs::File;
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt, BufWriter};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
@@ -68,15 +69,53 @@ async fn main() -> Result<()> {
             app.run().await?;
         }
         Commands::Dump(args) => {
-            dump_data(args, buffer).await?;
+            // Intercept frames when dumping raw data.
+            let receiver = if let Some(ref path) = args.raw {
+                let file = match File::create(path).await {
+                    Ok(file) => file,
+                    Err(e) => {
+                        return Err(e.into());
+                    }
+                };
+
+                let (tx, raw_rx) = unbounded_channel();
+                tokio::spawn(dump_raw(file, receiver, tx));
+                raw_rx
+            } else {
+                receiver
+            };
+
+            // Spawn a decoder thread.
+            tokio::spawn(decoder(receiver, frames_tx));
+
+            // Process frames.
+            dump_data(args, frames_rx).await?;
         }
     }
 
     Ok(())
 }
 
-async fn dump_data(_args: Dump, _buffer: Arc<SensorDataBuffer>) -> Result<()> {
-    todo!()
+async fn dump_raw(
+    file: File,
+    mut rx: UnboundedReceiver<Vec<u8>>,
+    tx: UnboundedSender<Vec<u8>>,
+) -> Result<()> {
+    let mut buffered_writer = BufWriter::new(file);
+    loop {
+        if let Some(data) = rx.recv().await {
+            buffered_writer.write_all(&data).await?;
+            tx.send(data)?;
+        }
+    }
+}
+
+async fn dump_data(_args: Dump, mut rx: UnboundedReceiver<Version1DataFrame>) -> Result<()> {
+    loop {
+        if let Some(data) = rx.recv().await {
+            println!("Data received: {:?}", data);
+        }
+    }
 }
 
 async fn decoder(
