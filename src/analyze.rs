@@ -6,7 +6,12 @@ use itertools::izip;
 use plotters::prelude::*;
 use polars::prelude::*;
 
-pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> {
+pub fn analyze_dump(
+    input: PathBuf,
+    _output: PathBuf,
+    from: f64,
+    to: Option<f64>,
+) -> color_eyre::Result<()> {
     // Define the pattern to find all CSV files with "acc", "mag", or "gyro" in their names
     let pattern = input.join("*.csv");
 
@@ -30,36 +35,52 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
                             .try_into_reader_with_file_path(Some(path.clone()))?
                             .finish()?;
 
-                        println!("{:?}", df.get_column_names());
-
                         // Normalize data time to the first observation.
                         // NOTE: This makes correlation of series between sensors a bit harder.
                         let host_time = df.column("host_time")?.cast(&DataType::Float64)?;
                         let first: f64 = host_time.get(0)?.try_extract()?;
-                        let time: Vec<f32> = (host_time - first)
+                        let time = host_time - first;
+                        let last: f64 = time.get(time.len() - 1)?.try_extract()?;
+
+                        // Filter to selected time range.
+                        let filter_from = time.cast(&DataType::Float64)?.gt_eq(from)?;
+                        let filter_to = time.cast(&DataType::Float64)?.lt_eq(to.unwrap_or(last))?;
+                        let filter = filter_from & filter_to;
+
+                        // Filter to the proper time range.
+                        let time = time.filter(&filter)?;
+
+                        let time: Vec<f32> = time
                             .cast(&DataType::Float32)?
                             .f32()?
                             .into_no_null_iter()
                             .collect();
+                        let first: f32 = *time.first().unwrap();
                         let last: f32 = *time.last().unwrap();
 
-                        let time_normalized: Vec<f32> = time.iter().map(|t| t / last).collect();
+                        let time_normalized: Vec<f32> =
+                            time.iter().map(|t| (t - first) / (last - first)).collect();
+
+                        println!("{}", time[0]);
 
                         // Fetch the axis values.
                         let x: Vec<f32> = df
                             .column("x")?
+                            .filter(&filter)?
                             .cast(&DataType::Float32)?
                             .f32()?
                             .into_no_null_iter()
                             .collect();
                         let y: Vec<f32> = df
                             .column("y")?
+                            .filter(&filter)?
                             .cast(&DataType::Float32)?
                             .f32()?
                             .into_no_null_iter()
                             .collect();
                         let z: Vec<f32> = df
                             .column("z")?
+                            .filter(&filter)?
                             .cast(&DataType::Float32)?
                             .f32()?
                             .into_no_null_iter()
@@ -119,13 +140,13 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
                         // TODO: split_evenly
                         let (upper, lower) = root_area.split_vertically(512);
 
-                        let x_axis = (0.0..last).step(0.1);
+                        let time_axis = (first..last).step(0.1);
 
                         let mut cc = ChartBuilder::on(&upper)
                             .margin(10)
                             .set_all_label_area_size(50)
                             .caption(file_name, ("sans-serif", 40))
-                            .build_cartesian_2d(x_axis, min..max)?;
+                            .build_cartesian_2d(time_axis, min..max)?;
 
                         cc.configure_mesh()
                             .x_labels(20)

@@ -113,4 +113,21 @@ pub struct AnalyzeDump {
         help = "The output directory to which to store data"
     )]
     pub output: Option<PathBuf>,
+
+    #[arg(
+        short,
+        long,
+        value_name = "FROM",
+        help = "The time from which to start the analysis, in seconds",
+        default_value_t = 0.0
+    )]
+    pub from: f64,
+
+    #[arg(
+        short,
+        long,
+        value_name = "TO",
+        help = "The time until which to run the analysis, in seconds"
+    )]
+    pub to: Option<f64>,
 }

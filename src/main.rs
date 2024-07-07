@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
         #[cfg(feature = "analyze")]
         Commands::AnalyzeDump(args) => {
             let output = args.output.unwrap_or(args.dir.clone());
-            analyze::analyze_dump(args.dir, output)?;
+            analyze::analyze_dump(args.dir, output, args.from, args.to)?;
         }
     }
 
