@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
+use colorgrad::Gradient;
 use glob::glob;
+use itertools::izip;
 use plotters::prelude::*;
 use polars::prelude::*;
 
@@ -40,6 +42,8 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
                             .into_no_null_iter()
                             .collect();
                         let last: f32 = *time.last().unwrap();
+
+                        let time_normalized: Vec<f32> = time.iter().map(|t| t / last).collect();
 
                         // Fetch the axis values.
                         let x: Vec<f32> = df
@@ -103,6 +107,15 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
                             BitMapBackend::new(&out_file_name, (512 * 3, 1024)).into_drawing_area();
                         root_area.fill(&WHITE)?;
 
+                        // Custom colors
+                        // let red = RGBColor(255, 127, 80); // Coral
+                        // let green = RGBColor(152, 251, 152); // Mint
+                        // let blue = RGBColor(135, 206, 250); // Teal
+                        let red = RGBColor(220, 100, 60); // Darker Coral
+                        let green = RGBColor(100, 200, 100); // Darker Mint
+                        let blue = RGBColor(70, 130, 180); // Darker Teal
+                        let gradient = colorgrad::oranges();
+
                         // TODO: split_evenly
                         let (upper, lower) = root_area.split_vertically(512);
 
@@ -127,26 +140,26 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
                         cc.draw_series(
                             time.iter()
                                 .zip(x.iter())
-                                .map(|(&t, &x)| Circle::new((t, x), 1, RED.filled())),
+                                .map(|(&t, &x)| Circle::new((t, x), 1, red.filled())),
                         )?
                         .label("X")
-                        .legend(|(x, y)| Circle::new((x, y), 2, RED.filled()));
+                        .legend(|(x, y)| Circle::new((x, y), 2, red.filled()));
 
                         cc.draw_series(
                             time.iter()
                                 .zip(y.iter())
-                                .map(|(&t, &y)| Circle::new((t, y), 1, GREEN.filled())),
+                                .map(|(&t, &y)| Circle::new((t, y), 1, green.filled())),
                         )?
                         .label("Y")
-                        .legend(|(x, y)| Circle::new((x, y), 2, GREEN.filled()));
+                        .legend(|(x, y)| Circle::new((x, y), 2, green.filled()));
 
                         cc.draw_series(
                             time.iter()
                                 .zip(z.iter())
-                                .map(|(&t, &z)| Circle::new((t, z), 1, BLUE.filled())),
+                                .map(|(&t, &z)| Circle::new((t, z), 1, blue.filled())),
                         )?
                         .label("Z")
-                        .legend(|(x, y)| Circle::new((x, y), 2, BLUE.filled()));
+                        .legend(|(x, y)| Circle::new((x, y), 2, blue.filled()));
 
                         cc.configure_series_labels()
                             .position(SeriesLabelPosition::LowerLeft)
@@ -182,11 +195,15 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
                                 .max_light_lines(4)
                                 .draw()?;
 
-                            cc.draw_series(
-                                a.iter()
-                                    .zip(b.iter())
-                                    .map(|(&x, &y)| Circle::new((x, y), 1, BLACK.filled())),
-                            )?
+                            cc.draw_series(izip!(&time_normalized, a, b).map(
+                                |(&time, &x, &y)| {
+                                    Circle::new(
+                                        (x, y),
+                                        2,
+                                        colormap(time, &gradient).mix(0.5).filled(),
+                                    )
+                                },
+                            ))?
                             .label(label)
                             .legend(|(x, y)| Circle::new((x, y), 2, BLACK.filled()));
                         }
@@ -200,4 +217,14 @@ pub fn analyze_dump(input: PathBuf, _output: PathBuf) -> color_eyre::Result<()> 
         }
     }
     Ok(())
+}
+
+fn colormap(value: f32, gradient: &Gradient) -> RGBAColor {
+    let color = gradient.at(value as _);
+    RGBAColor(
+        (color.r * 255.0) as u8,
+        (color.g * 255.0) as u8,
+        (color.b * 255.0) as u8,
+        color.a,
+    )
 }
