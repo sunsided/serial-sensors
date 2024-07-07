@@ -220,16 +220,16 @@ fn create_data_row(
     Some(row.as_bytes().into())
 }
 
-fn decode_device_time(data: &Version1DataFrame) -> f32 {
+fn decode_device_time(data: &Version1DataFrame) -> f64 {
     if data.system_secs != u32::MAX {
-        data.system_secs as f32
+        data.system_secs as f64
             + if data.system_millis != u16::MAX {
-                data.system_millis as f32 / 1_000.0
+                data.system_millis as f64 / 1_000.0
             } else {
                 0.0
             }
             + if data.system_nanos != u16::MAX {
-                data.system_nanos as f32 / 1_000_000.0
+                data.system_nanos as f64 / 1_000_000.0
             } else {
                 0.0
             }
