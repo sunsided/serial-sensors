@@ -46,7 +46,7 @@ json5 = { version = "0.4.1", optional = true }
 num-traits = "0.2.19"
 async-compression = { version = "0.4.11", features = ["gzip", "tokio"], optional = true }
 glob = { version = "0.3.1", optional = true }
-polars = { version = "0.41.3", optional = true }
+polars = { version = "0.41.3", optional = true, default-features = false, features = ["csv"] }
 
 [patch.crates-io]
 # serial-sensors-proto = { git = "https://github.com/sunsided/serial-sensors-proto", features = ["std", "alloc", "unsafe", "quaternion", "micromath"] }
