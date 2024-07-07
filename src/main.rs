@@ -1,6 +1,6 @@
 extern crate core;
 
-#[cfg(feature = "serial")]
+#[cfg(feature = "tui")]
 use std::sync::Arc;
 #[cfg(feature = "serial")]
 use std::time::Duration;
@@ -192,7 +192,7 @@ async fn decoder(
     }
 }
 
-#[cfg(feature = "serial")]
+#[cfg(feature = "tui")]
 async fn decoder_to_buffer(
     mut receiver: UnboundedReceiver<Version1DataFrame>,
     data_buffer: Arc<SensorDataBuffer>,
