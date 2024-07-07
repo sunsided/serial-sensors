@@ -5,9 +5,9 @@ use color_eyre::eyre::Result;
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::action::Action;
-use crate::components::utils::frame_data_to_line;
-use crate::data_buffer::SensorDataBuffer;
+use crate::text_user_interface::action::Action;
+use crate::text_user_interface::components::utils::frame_data_to_line;
+use crate::text_user_interface::data_buffer::SensorDataBuffer;
 
 use super::{Component, Frame};
 

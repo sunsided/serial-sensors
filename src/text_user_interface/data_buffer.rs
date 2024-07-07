@@ -8,7 +8,7 @@ use serial_sensors_proto::types::LinearRangeInfo;
 use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::{DataFrame, IdentifierCode, SensorData, SensorId};
 
-use crate::fps_counter::FpsCounter;
+use crate::text_user_interface::fps_counter::FpsCounter;
 
 const BUFFER_CAP: usize = 100;
 

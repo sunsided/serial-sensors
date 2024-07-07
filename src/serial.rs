@@ -1,3 +1,4 @@
+#[cfg(feature = "tui")]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,7 +8,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
-use crate::data_buffer::SensorDataBuffer;
+#[cfg(feature = "tui")]
+use crate::text_user_interface::SensorDataBuffer;
 
 pub fn start_receive(
     from_device: UnboundedSender<Vec<u8>>,

@@ -3,10 +3,9 @@ use std::sync::Arc;
 use color_eyre::eyre::Result;
 use ratatui::{prelude::*, widgets::*};
 
-use crate::action::Action;
-use crate::data_buffer::SensorDataBuffer;
-
-use super::Component;
+use crate::text_user_interface::action::Action;
+use crate::text_user_interface::components::Component;
+use crate::text_user_interface::SensorDataBuffer;
 
 #[derive(Debug, Clone)]
 pub struct FpsDisplay {
