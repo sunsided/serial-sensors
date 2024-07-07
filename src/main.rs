@@ -1,32 +1,50 @@
 extern crate core;
 
+#[cfg(feature = "serial")]
 use std::sync::Arc;
+#[cfg(feature = "serial")]
 use std::time::Duration;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
+#[cfg(feature = "tui")]
 pub use ratatui::prelude::*;
-use serial_sensors_proto::versions::Version1DataFrame;
-use serial_sensors_proto::{deserialize, DeserializationError};
-use tokio::fs::File;
+#[cfg(feature = "serial")]
+use serial_sensors_proto::{deserialize, versions::Version1DataFrame, DeserializationError};
+#[cfg(feature = "serial")]
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+#[cfg(feature = "serial")]
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+#[cfg(feature = "serial")]
 use tokio_serial::{DataBits, FlowControl, Parity, SerialPortBuilderExt, SerialStream, StopBits};
 
+#[cfg(feature = "tui")]
 use crate::app::App;
 use crate::cli::{Cli, Commands};
+#[cfg(feature = "tui")]
 use crate::data_buffer::SensorDataBuffer;
+#[cfg(feature = "dump")]
 use crate::dumping::{dump_data, dump_raw, dump_raw_gzipped};
-use crate::utils::{initialize_logging, initialize_panic_handler};
+use crate::utils::initialize_logging;
 
+#[cfg(feature = "tui")]
 mod action;
+#[cfg(feature = "analyze")]
+mod analyze;
+#[cfg(feature = "tui")]
 mod app;
 mod cli;
+#[cfg(feature = "tui")]
 mod components;
+#[cfg(feature = "tui")]
 mod config;
+#[cfg(feature = "tui")]
 mod data_buffer;
+#[cfg(feature = "dump")]
 mod dumping;
+#[cfg(feature = "tui")]
 mod fps_counter;
+#[cfg(feature = "tui")]
 mod tui;
 mod utils;
 
@@ -34,43 +52,38 @@ mod utils;
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
     initialize_logging()?;
-    initialize_panic_handler()?;
+
+    #[cfg(feature = "tui")]
+    utils::initialize_panic_handler()?;
 
     let args = Cli::parse();
 
-    let buffer = Arc::new(SensorDataBuffer::default());
-
-    // Open the serial port
-    let port = tokio_serial::new(args.port, args.baud)
-        .data_bits(DataBits::Eight)
-        .flow_control(FlowControl::None)
-        .parity(Parity::None)
-        .stop_bits(StopBits::One)
-        .timeout(Duration::from_millis(10))
-        .open_native_async()
-        .expect("Failed to open port");
-
-    let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
-    let (frames_tx, frames_rx) = unbounded_channel::<Version1DataFrame>();
-    let (_command, to_device) = unbounded_channel::<String>();
-    // let (decoder_send, decoded_event) = unbounded_channel::<Version1DataFrame>();
-
-    // Spawn a thread for reading data from the serial port
-    tokio::spawn(handle_data_recv(port, from_device, to_device));
-
     // Run the app.
     match args.command {
+        #[cfg(feature = "tui")]
         Commands::Ui(args) => {
+            let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
+
+            let (_command, to_device) = unbounded_channel::<String>();
+            start_receive(from_device, to_device, &args.port, args.baud);
+
             // Spawn a decoder thread.
+            let (frames_tx, frames_rx) = unbounded_channel::<Version1DataFrame>();
             tokio::spawn(decoder(receiver, frames_tx));
 
             // Spawn a buffer thread.
+            let buffer = Arc::new(SensorDataBuffer::default());
             tokio::spawn(decoder_to_buffer(frames_rx, buffer.clone()));
 
             let mut app = App::new(args.frame_rate, buffer)?;
             app.run().await?;
         }
+        #[cfg(feature = "dump")]
         Commands::Dump(args) => {
+            let (from_device, receiver) = unbounded_channel::<Vec<u8>>();
+            let (_command, to_device) = unbounded_channel::<String>();
+            start_receive(from_device, to_device, &args.port, args.baud);
+
             // Intercept frames when dumping raw data.
             let receiver = if let Some(ref path) = args.raw {
                 let gzip = path
@@ -79,7 +92,7 @@ async fn main() -> Result<()> {
                     .map(|ext| ext == "gz")
                     .unwrap_or(false);
 
-                let file = match File::create(path).await {
+                let file = match tokio::fs::File::create(path).await {
                     Ok(file) => file,
                     Err(e) => {
                         return Err(e.into());
@@ -98,20 +111,48 @@ async fn main() -> Result<()> {
             };
 
             // Spawn a decoder thread.
+            let (frames_tx, frames_rx) = unbounded_channel::<Version1DataFrame>();
             tokio::spawn(decoder(receiver, frames_tx));
 
             // Process frames.
             dump_data(args.dir, frames_rx).await?;
+        }
+        #[cfg(feature = "analyze")]
+        Commands::AnalyzeDump(args) => {
+            let output = args.output.unwrap_or(args.dir.clone());
+            analyze::analyze_dump(args.dir, output)?;
         }
     }
 
     Ok(())
 }
 
+#[cfg(feature = "serial")]
+fn start_receive(
+    from_device: UnboundedSender<Vec<u8>>,
+    to_device: UnboundedReceiver<String>,
+    port: &str,
+    baud_rate: u32,
+) {
+    // Open the serial port
+    let port = tokio_serial::new(port, baud_rate)
+        .data_bits(DataBits::Eight)
+        .flow_control(FlowControl::None)
+        .parity(Parity::None)
+        .stop_bits(StopBits::One)
+        .timeout(Duration::from_millis(10))
+        .open_native_async()
+        .expect("Failed to open port");
+
+    // Spawn a thread for reading data from the serial port
+    tokio::spawn(handle_data_recv(port, from_device, to_device));
+}
+
+#[cfg(feature = "serial")]
 async fn decoder(
     mut receiver: UnboundedReceiver<Vec<u8>>,
     sender: UnboundedSender<Version1DataFrame>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     // Main loop for printing input from the serial line.
     let mut buffer = Vec::with_capacity(1024);
     loop {
@@ -151,10 +192,11 @@ async fn decoder(
     }
 }
 
+#[cfg(feature = "serial")]
 async fn decoder_to_buffer(
     mut receiver: UnboundedReceiver<Version1DataFrame>,
     data_buffer: Arc<SensorDataBuffer>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     loop {
         if let Some(data) = receiver.recv().await {
             data_buffer.enqueue(data);
@@ -162,11 +204,12 @@ async fn decoder_to_buffer(
     }
 }
 
+#[cfg(feature = "serial")]
 async fn handle_data_recv(
     mut port: SerialStream,
     from_device: UnboundedSender<Vec<u8>>,
     mut to_device: UnboundedReceiver<String>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     let _guard = RecvObserver;
     let mut buf: Vec<u8> = vec![0; 1024];
     loop {
@@ -191,8 +234,10 @@ async fn handle_data_recv(
     }
 }
 
+#[cfg(feature = "serial")]
 struct RecvObserver;
 
+#[cfg(feature = "serial")]
 impl Drop for RecvObserver {
     fn drop(&mut self) {
         println!("Receive loop finished");
