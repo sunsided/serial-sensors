@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use colorgrad::Gradient;
 use glob::glob;
 use itertools::izip;
+use plotters::coord::Shift;
 use plotters::prelude::*;
 use polars::prelude::*;
 
@@ -28,6 +29,26 @@ pub fn analyze_dump(
                         println!("Processing {file_name}");
                         let output_file = output.join(format!("{file_name}.bmp"));
                         let out_file_name = format!("{}", output_file.display());
+
+                        let (sensor_type, _sensor_type_short) = if file_name.contains("acc") {
+                            ("accelerometer", "acc")
+                        } else if file_name.contains("mag") {
+                            ("magnetometer", "mag")
+                        } else if file_name.contains("gyro") {
+                            ("gyroscope", "gyro")
+                        } else {
+                            ("unknown", "unknown")
+                        };
+
+                        // Get the identification file.
+                        let (sensor_tag, ident) = get_ident(input.clone(), &file_name)?;
+                        let label = if !sensor_tag.is_empty() && !ident.is_empty() {
+                            println!("{sensor_tag} is a {ident}");
+                            format!("{ident} {sensor_type}")
+                        } else {
+                            println!("Unable to identify sensor");
+                            format!("{file_name} ({sensor_type})")
+                        };
 
                         // Read the CSV file using Polars
                         let df = CsvReadOptions::default()
@@ -123,8 +144,17 @@ pub fn analyze_dump(
                         let max = max.abs().max(min.abs()) * 1.1;
                         let min = -max;
 
-                        let root_area =
-                            BitMapBackend::new(&out_file_name, (512 * 3, 1024)).into_drawing_area();
+                        const BLOCK_HEIGHT: u32 = 512;
+                        const BLOCK_WIDTH: u32 = 512;
+
+                        const NUM_ROWS: u32 = 5;
+                        const NUM_COLS: u32 = 4;
+
+                        let root_area = BitMapBackend::new(
+                            &out_file_name,
+                            (BLOCK_WIDTH * NUM_COLS, BLOCK_HEIGHT * NUM_ROWS + 40),
+                        )
+                        .into_drawing_area();
                         root_area.fill(&WHITE)?;
 
                         // Custom colors
@@ -136,59 +166,42 @@ pub fn analyze_dump(
                         let blue = RGBColor(70, 130, 180); // Darker Teal
                         let gradient = colorgrad::oranges();
 
-                        // TODO: split_evenly
-                        let (upper, lower) = root_area.split_vertically(512);
+                        // Apply title.
+                        let (upper, lower) = root_area.split_vertically(40);
+                        upper.titled(&label, ("sans-serif", 40))?;
 
-                        let time_axis = (first..last).step(0.1);
+                        // Plot area.
+                        let (upper, lower) = lower.split_vertically(BLOCK_HEIGHT);
 
-                        let mut cc = ChartBuilder::on(&upper)
+                        // Plot 3D
+                        let (left, right) = upper.split_horizontally(BLOCK_WIDTH);
+                        let mut cc = ChartBuilder::on(&left)
                             .margin(10)
-                            .set_all_label_area_size(50)
-                            .caption(file_name, ("sans-serif", 40))
-                            .build_cartesian_2d(time_axis, min..max)?;
+                            .build_cartesian_3d(min..max, min..max, min..max)
+                            .unwrap();
 
-                        cc.configure_mesh()
+                        cc.configure_axes()
                             .x_labels(20)
-                            .y_labels(10)
-                            .x_desc("time (seconds)")
-                            .y_desc("axis readings")
-                            .x_label_formatter(&|v| format!("{:.1}", v))
-                            .y_label_formatter(&|v| format!("{:.1}", v))
+                            .y_labels(20)
+                            .z_labels(20)
                             .max_light_lines(4)
                             .draw()?;
 
-                        cc.draw_series(
-                            time.iter()
-                                .zip(x.iter())
-                                .map(|(&t, &x)| Circle::new((t, x), 1, red.filled())),
-                        )?
-                        .label("X")
-                        .legend(|(x, y)| Circle::new((x, y), 2, red.filled()));
+                        cc.draw_series(izip!(&time_normalized, &x, &y, &z).map(
+                            |(&time, &x, &y, &z)| {
+                                Circle::new(
+                                    (x, y, z),
+                                    2,
+                                    colormap(time, &gradient).mix(0.5).filled(),
+                                )
+                            },
+                        ))?
+                        .label(label.clone())
+                        .legend(|(x, y)| Circle::new((x, y), 2, BLACK.filled()));
 
-                        cc.draw_series(
-                            time.iter()
-                                .zip(y.iter())
-                                .map(|(&t, &y)| Circle::new((t, y), 1, green.filled())),
-                        )?
-                        .label("Y")
-                        .legend(|(x, y)| Circle::new((x, y), 2, green.filled()));
-
-                        cc.draw_series(
-                            time.iter()
-                                .zip(z.iter())
-                                .map(|(&t, &z)| Circle::new((t, z), 1, blue.filled())),
-                        )?
-                        .label("Z")
-                        .legend(|(x, y)| Circle::new((x, y), 2, blue.filled()));
-
-                        cc.configure_series_labels()
-                            .position(SeriesLabelPosition::LowerLeft)
-                            .border_style(BLACK)
-                            .background_style(WHITE.mix(0.5))
-                            .draw()?;
-
-                        let (left, right) = lower.split_horizontally(512);
-                        let (middle, right) = right.split_horizontally(512);
+                        // Plot the X/Y, X/Z, Y/Z views
+                        let (left, right) = right.split_horizontally(BLOCK_WIDTH);
+                        let (middle, right) = right.split_horizontally(BLOCK_WIDTH);
 
                         let plots = [
                             (left, &x, &y, "X", "Y", "X/Y"),
@@ -228,6 +241,111 @@ pub fn analyze_dump(
                             .legend(|(x, y)| Circle::new((x, y), 2, BLACK.filled()));
                         }
 
+                        // Plot the combined view.
+                        let (upper, lower) = lower.split_vertically(BLOCK_HEIGHT);
+                        plot_combined(
+                            &time, first, last, &x, &y, &z, max, min, red, green, blue, &upper,
+                        )?;
+
+                        // Plot the X view.
+                        let (upper, lower) = lower.split_vertically(BLOCK_HEIGHT);
+
+                        let time_axis = (first..last).step(0.1);
+                        let mut cc = ChartBuilder::on(&upper)
+                            .margin(10)
+                            .set_all_label_area_size(50)
+                            .build_cartesian_2d(time_axis, min..max)?;
+
+                        cc.configure_mesh()
+                            .x_labels(20)
+                            .y_labels(10)
+                            .x_desc("time (seconds)")
+                            .y_desc("axis readings")
+                            .x_label_formatter(&|v| format!("{:.1}", v))
+                            .y_label_formatter(&|v| format!("{:.1}", v))
+                            .max_light_lines(4)
+                            .draw()?;
+
+                        cc.draw_series(
+                            time.iter()
+                                .zip(x.iter())
+                                .map(|(&t, &x)| Circle::new((t, x), 1, red.filled())),
+                        )?
+                        .label("X")
+                        .legend(|(x, y)| Circle::new((x, y), 2, red.filled()));
+
+                        cc.configure_series_labels()
+                            .position(SeriesLabelPosition::LowerLeft)
+                            .border_style(BLACK)
+                            .background_style(WHITE.mix(0.5))
+                            .draw()?;
+
+                        // Plot the Y view.
+                        let (upper, lower) = lower.split_vertically(BLOCK_HEIGHT);
+
+                        let time_axis = (first..last).step(0.1);
+                        let mut cc = ChartBuilder::on(&upper)
+                            .margin(10)
+                            .set_all_label_area_size(50)
+                            .build_cartesian_2d(time_axis, min..max)?;
+
+                        cc.configure_mesh()
+                            .x_labels(20)
+                            .y_labels(10)
+                            .x_desc("time (seconds)")
+                            .y_desc("axis readings")
+                            .x_label_formatter(&|v| format!("{:.1}", v))
+                            .y_label_formatter(&|v| format!("{:.1}", v))
+                            .max_light_lines(4)
+                            .draw()?;
+
+                        cc.draw_series(
+                            time.iter()
+                                .zip(y.iter())
+                                .map(|(&t, &y)| Circle::new((t, y), 1, green.filled())),
+                        )?
+                        .label("Y")
+                        .legend(|(x, y)| Circle::new((x, y), 2, green.filled()));
+
+                        cc.configure_series_labels()
+                            .position(SeriesLabelPosition::LowerLeft)
+                            .border_style(BLACK)
+                            .background_style(WHITE.mix(0.5))
+                            .draw()?;
+
+                        // Plot the Z view.
+                        let (upper, _lower) = lower.split_vertically(BLOCK_HEIGHT);
+
+                        let time_axis = (first..last).step(0.1);
+                        let mut cc = ChartBuilder::on(&upper)
+                            .margin(10)
+                            .set_all_label_area_size(50)
+                            .build_cartesian_2d(time_axis, min..max)?;
+
+                        cc.configure_mesh()
+                            .x_labels(20)
+                            .y_labels(10)
+                            .x_desc("time (seconds)")
+                            .y_desc("axis readings")
+                            .x_label_formatter(&|v| format!("{:.1}", v))
+                            .y_label_formatter(&|v| format!("{:.1}", v))
+                            .max_light_lines(4)
+                            .draw()?;
+
+                        cc.draw_series(
+                            time.iter()
+                                .zip(z.iter())
+                                .map(|(&t, &z)| Circle::new((t, z), 1, blue.filled())),
+                        )?
+                        .label("Z")
+                        .legend(|(x, y)| Circle::new((x, y), 2, blue.filled()));
+
+                        cc.configure_series_labels()
+                            .position(SeriesLabelPosition::LowerLeft)
+                            .border_style(BLACK)
+                            .background_style(WHITE.mix(0.5))
+                            .draw()?;
+
                         root_area.present().expect("Unable to write result to file");
                         println!("Result has been saved to {}", out_file_name);
                     }
@@ -237,6 +355,105 @@ pub fn analyze_dump(
         }
     }
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn plot_combined(
+    time: &[f32],
+    first: f32,
+    last: f32,
+    x: &[f32],
+    y: &[f32],
+    z: &[f32],
+    max: f32,
+    min: f32,
+    red: RGBColor,
+    green: RGBColor,
+    blue: RGBColor,
+    upper: &DrawingArea<BitMapBackend, Shift>,
+) -> color_eyre::Result<()> {
+    let time_axis = (first..last).step(0.1);
+    let mut cc = ChartBuilder::on(upper)
+        .margin(10)
+        .set_all_label_area_size(50)
+        .build_cartesian_2d(time_axis, min..max)?;
+
+    cc.configure_mesh()
+        .x_labels(20)
+        .y_labels(10)
+        .x_desc("time (seconds)")
+        .y_desc("axis readings")
+        .x_label_formatter(&|v| format!("{:.1}", v))
+        .y_label_formatter(&|v| format!("{:.1}", v))
+        .max_light_lines(4)
+        .draw()?;
+
+    cc.draw_series(
+        time.iter()
+            .zip(x.iter())
+            .map(|(&t, &x)| Circle::new((t, x), 1, red.filled())),
+    )?
+    .label("X")
+    .legend(|(x, y)| Circle::new((x, y), 2, red.filled()));
+
+    cc.draw_series(
+        time.iter()
+            .zip(y.iter())
+            .map(|(&t, &y)| Circle::new((t, y), 1, green.filled())),
+    )?
+    .label("Y")
+    .legend(|(x, y)| Circle::new((x, y), 2, green.filled()));
+
+    cc.draw_series(
+        time.iter()
+            .zip(z.iter())
+            .map(|(&t, &z)| Circle::new((t, z), 1, blue.filled())),
+    )?
+    .label("Z")
+    .legend(|(x, y)| Circle::new((x, y), 2, blue.filled()));
+
+    cc.configure_series_labels()
+        .position(SeriesLabelPosition::LowerLeft)
+        .border_style(BLACK)
+        .background_style(WHITE.mix(0.5))
+        .draw()?;
+    Ok(())
+}
+
+fn get_ident(input: PathBuf, file_name: &&str) -> color_eyre::Result<(String, String)> {
+    let (sensor_tag, ident) = if let Some(index) = file_name.find('-') {
+        let sensor_tag = &file_name[..index];
+        let file = format!("{sensor_tag}-ident-ident-x64.csv");
+        let file = input.join(file);
+
+        let df = CsvReadOptions::default()
+            .with_infer_schema_length(Some(10))
+            .with_has_header(true)
+            .try_into_reader_with_file_path(Some(file.clone()))?
+            .finish()?;
+
+        let maker_filter = df.column("code")?.cast(&DataType::String)?.equal("maker")?;
+        let prod_filter = df
+            .column("code")?
+            .cast(&DataType::String)?
+            .equal("product")?;
+
+        let maker = if let Ok(row) = df.filter(&maker_filter)?.column("value")?.get(0) {
+            row.get_str().expect("expected string").to_string()
+        } else {
+            String::new()
+        };
+        let product = if let Ok(row) = df.filter(&prod_filter)?.column("value") {
+            row.get(0)?.get_str().expect("expected string").to_string()
+        } else {
+            String::new()
+        };
+
+        (String::from(sensor_tag), format!("{maker} {product}"))
+    } else {
+        (String::new(), String::new())
+    };
+    Ok((sensor_tag, ident))
 }
 
 fn colormap(value: f32, gradient: &Gradient) -> RGBAColor {
