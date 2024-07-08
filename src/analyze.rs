@@ -395,23 +395,34 @@ fn plot_cross_correlation(
         .y_label_area_size(256)
         .build_cartesian_2d(0.0..(count as f32), 0.0..(count as f32))?;
 
+    let label = |idx: f32| {
+        if idx < 0.0 || idx >= (count as f32) {
+            return "";
+        }
+
+        columns[idx as usize]
+    };
+
     chart
         .configure_mesh()
-        .x_labels(count)
-        .y_labels(count)
-        .x_label_formatter(&|x| columns[*x as usize].to_string())
-        .y_label_formatter(&|y| columns[count - *y as usize - 1].to_string())
+        .x_labels(count + 1)
+        .y_labels(count + 1)
+        .x_label_formatter(&|&x| label(x).to_string())
+        .y_label_formatter(&|&y| label(count as f32 - y - 1.0).to_string())
         .x_label_style(
             ("sans-serif", 20)
                 .into_font()
-                .transform(FontTransform::Rotate270),
+                .transform(FontTransform::Rotate270)
+                .color(&BLACK)
+                .pos(Pos::new(HPos::Right, VPos::Bottom)),
         )
         .y_label_style(("sans-serif", 20).into_font())
-        .max_light_lines(count)
+        .max_light_lines(0)
+        .set_all_tick_mark_size(10.0)
         .x_label_offset(40)
         .y_label_offset(-40)
-        // .disable_x_mesh()
-        // .disable_y_mesh()
+        .disable_x_mesh()
+        .disable_y_mesh()
         .draw()?;
 
     let gradient = &colorgrad::viridis();
