@@ -37,3 +37,11 @@ cargo run --no-default-features --features=analyze -- analyze-dump \
   --output test/2024-07-06/stm32f3discovery/output/ \
   --from 10 --to 25
 ```
+
+Here is an example output for accelerometer measurements:
+
+![](readme/accelerometer.jpg)
+
+Sensor cross-correlation suffers a bit from display issues, but it's a starting point:
+
+![](readme/cross-correlation.jpg)
