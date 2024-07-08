@@ -45,6 +45,10 @@ pub fn analyze_dump(
                             ("unknown", "unknown")
                         };
 
+                        // For gyros, it's interesting to see the integrated information
+                        // alongside the raw one.
+                        let integrate_xyz = sensor_type == "gyroscope";
+
                         // Get the identification file.
                         let (sensor_tag, ident) = get_ident(input.clone(), &file_name)?;
                         let label = if !sensor_tag.is_empty() && !ident.is_empty() {
@@ -105,9 +109,9 @@ pub fn analyze_dump(
                         )?;
 
                         // Fetch the axis values.
-                        let x: Vec<f32> = x_series.f32()?.into_no_null_iter().collect();
-                        let y: Vec<f32> = y_series.f32()?.into_no_null_iter().collect();
-                        let z: Vec<f32> = z_series.f32()?.into_no_null_iter().collect();
+                        let mut x: Vec<f32> = x_series.f32()?.into_no_null_iter().collect();
+                        let mut y: Vec<f32> = y_series.f32()?.into_no_null_iter().collect();
+                        let mut z: Vec<f32> = z_series.f32()?.into_no_null_iter().collect();
 
                         // Min and max ranges.
                         let x_min = x
@@ -153,9 +157,15 @@ pub fn analyze_dump(
                         const NUM_ROWS: u32 = 5;
                         const NUM_COLS: u32 = 4;
 
+                        let num_rows = if integrate_xyz {
+                            NUM_ROWS + 1
+                        } else {
+                            NUM_ROWS
+                        };
+
                         let root_area = BitMapBackend::new(
                             &out_file_name,
-                            (BLOCK_WIDTH * NUM_COLS, BLOCK_HEIGHT * NUM_ROWS + 40),
+                            (BLOCK_WIDTH * NUM_COLS, BLOCK_HEIGHT * num_rows + 40),
                         )
                         .into_drawing_area();
                         root_area.fill(&WHITE)?;
@@ -317,7 +327,7 @@ pub fn analyze_dump(
                             .draw()?;
 
                         // Plot the Z view.
-                        let (upper, _lower) = lower.split_vertically(BLOCK_HEIGHT);
+                        let (upper, lower) = lower.split_vertically(BLOCK_HEIGHT);
 
                         let time_axis = (first..last).step(0.1);
                         let mut cc = ChartBuilder::on(&upper)
@@ -348,6 +358,81 @@ pub fn analyze_dump(
                             .border_style(BLACK)
                             .background_style(WHITE.mix(0.5))
                             .draw()?;
+
+                        // Plot the integrated data
+                        if integrate_xyz {
+                            let mut min = f32::MAX;
+                            let mut max = f32::MIN;
+
+                            for i in 1..x.len() {
+                                x[i] += x[i - 1];
+                                min = min.min(x[i]);
+                                max = max.max(x[i]);
+                            }
+
+                            for i in 1..y.len() {
+                                y[i] += y[i - 1];
+                                min = min.min(y[i]);
+                                max = max.max(y[i]);
+                            }
+
+                            for i in 1..z.len() {
+                                z[i] += z[i - 1];
+                                min = min.min(z[i]);
+                                max = max.max(z[i]);
+                            }
+
+                            let max = max.max(min.abs());
+                            let min = -max;
+
+                            // Plot the X view
+                            let (upper, _lower) = lower.split_vertically(BLOCK_HEIGHT);
+                            let time_axis = (first..last).step(0.1);
+                            let mut cc = ChartBuilder::on(&upper)
+                                .margin(10)
+                                .set_all_label_area_size(50)
+                                .build_cartesian_2d(time_axis, min..max)?;
+
+                            cc.configure_mesh()
+                                .x_labels(20)
+                                .y_labels(10)
+                                .x_desc("time (seconds)")
+                                .y_desc("axis readings")
+                                .x_label_formatter(&|v| format!("{:.1}", v))
+                                .y_label_formatter(&|v| format!("{:.1}", v))
+                                .max_light_lines(4)
+                                .draw()?;
+
+                            cc.draw_series(
+                                time.iter()
+                                    .zip(x.iter())
+                                    .map(|(&t, &x)| Circle::new((t, x), 1, red.filled())),
+                            )?
+                            .label("X (integrated)")
+                            .legend(|(x, y)| Circle::new((x, y), 2, red.filled()));
+
+                            cc.draw_series(
+                                time.iter()
+                                    .zip(y.iter())
+                                    .map(|(&t, &y)| Circle::new((t, y), 1, green.filled())),
+                            )?
+                            .label("Y (integrated)")
+                            .legend(|(x, y)| Circle::new((x, y), 2, green.filled()));
+
+                            cc.draw_series(
+                                time.iter()
+                                    .zip(z.iter())
+                                    .map(|(&t, &z)| Circle::new((t, z), 1, blue.filled())),
+                            )?
+                            .label("Z (integrated)")
+                            .legend(|(x, y)| Circle::new((x, y), 2, blue.filled()));
+
+                            cc.configure_series_labels()
+                                .position(SeriesLabelPosition::LowerLeft)
+                                .border_style(BLACK)
+                                .background_style(WHITE.mix(0.5))
+                                .draw()?;
+                        }
 
                         root_area.present().expect("Unable to write result to file");
                         println!("Result has been saved to {}", out_file_name);
