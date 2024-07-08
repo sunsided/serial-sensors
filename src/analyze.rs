@@ -371,8 +371,8 @@ fn plot_cross_correlation(
     combined: &mut DataFrame,
 ) -> color_eyre::Result<()> {
     println!("Calculating cross-correlation ...");
+    let combined = combined.drop("host_time")?;
     let array = combined
-        .drop("host_time")?
         .to_ndarray::<Float32Type>(IndexOrder::C)?
         .reversed_axes();
     let xcorr_matrix = array.pearson_correlation().unwrap();
@@ -383,27 +383,35 @@ fn plot_cross_correlation(
     println!("Plotting cross-correlation to {output_file}");
 
     let count = xcorr_matrix.nrows();
+    let columns = combined.get_column_names();
 
     let root = BitMapBackend::new(&output_file, (1024, 1024)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let mut chart = ChartBuilder::on(&root)
         .caption("Sensor Cross-Correlation", ("sans-serif", 40))
-        .margin(5)
-        .top_x_label_area_size(40)
-        .y_label_area_size(40)
+        .margin(10)
+        .top_x_label_area_size(256)
+        .y_label_area_size(256)
         .build_cartesian_2d(0.0..(count as f32), 0.0..(count as f32))?;
 
     chart
         .configure_mesh()
         .x_labels(count)
         .y_labels(count)
-        .max_light_lines(4)
-        .x_label_offset(35)
-        .y_label_offset(25)
-        .disable_x_mesh()
-        .disable_y_mesh()
-        .label_style(("sans-serif", 20))
+        .x_label_formatter(&|x| columns[*x as usize].to_string())
+        .y_label_formatter(&|y| columns[count - *y as usize - 1].to_string())
+        .x_label_style(
+            ("sans-serif", 20)
+                .into_font()
+                .transform(FontTransform::Rotate270),
+        )
+        .y_label_style(("sans-serif", 20).into_font())
+        .max_light_lines(count)
+        .x_label_offset(40)
+        .y_label_offset(-40)
+        // .disable_x_mesh()
+        // .disable_y_mesh()
         .draw()?;
 
     let gradient = &colorgrad::viridis();
@@ -591,7 +599,7 @@ fn get_ident(input: PathBuf, file_name: &&str) -> color_eyre::Result<(String, St
             .cast(&DataType::String)?
             .equal("product")?;
 
-        let maker = if let Ok(row) = df.filter(&maker_filter)?.column("value")?.get(0) {
+        let _maker = if let Ok(row) = df.filter(&maker_filter)?.column("value")?.get(0) {
             row.get_str().expect("expected string").to_string()
         } else {
             String::new()
@@ -602,7 +610,7 @@ fn get_ident(input: PathBuf, file_name: &&str) -> color_eyre::Result<(String, St
             String::new()
         };
 
-        (String::from(sensor_tag), format!("{maker} {product}"))
+        (String::from(sensor_tag), product)
     } else {
         (String::new(), String::new())
     };
