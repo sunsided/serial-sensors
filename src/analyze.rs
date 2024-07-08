@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::path::PathBuf;
 
 use colorgrad::Gradient;
@@ -353,6 +354,12 @@ pub fn analyze_dump(
             }
             Err(e) => eprintln!("Failed to read path: {:?}", e),
         }
+    }
+
+    if let Some(combined) = &mut combined {
+        let output_file = output.join("joined.csv");
+        let file = File::create(output_file)?;
+        CsvWriter::new(file).include_header(true).finish(combined)?;
     }
     Ok(())
 }
