@@ -16,6 +16,8 @@ pub fn analyze_dump(
     // Define the pattern to find all CSV files with "acc", "mag", or "gyro" in their names
     let pattern = input.join("*.csv");
 
+    let mut combined = None;
+
     // Iterate over each file that matches the pattern
     for entry in glob(&format!("{}", pattern.display())).expect("Failed to read glob pattern") {
         match entry {
@@ -44,10 +46,10 @@ pub fn analyze_dump(
                         let (sensor_tag, ident) = get_ident(input.clone(), &file_name)?;
                         let label = if !sensor_tag.is_empty() && !ident.is_empty() {
                             println!("{sensor_tag} is a {ident}");
-                            format!("{ident} {sensor_type}")
+                            format!("{sensor_type} ({ident})")
                         } else {
                             println!("Unable to identify sensor");
-                            format!("{file_name} ({sensor_type})")
+                            format!("{sensor_type} ({file_name})")
                         };
 
                         // Read the CSV file using Polars
@@ -61,7 +63,7 @@ pub fn analyze_dump(
                         // NOTE: This makes correlation of series between sensors a bit harder.
                         let host_time = df.column("host_time")?.cast(&DataType::Float64)?;
                         let first: f64 = host_time.get(0)?.try_extract()?;
-                        let time = host_time - first;
+                        let time = host_time.clone() - first;
                         let last: f64 = time.get(time.len() - 1)?.try_extract()?;
 
                         // Filter to selected time range.
@@ -70,9 +72,10 @@ pub fn analyze_dump(
                         let filter = filter_from & filter_to;
 
                         // Filter to the proper time range.
-                        let time = time.filter(&filter)?;
+                        let host_time = host_time.filter(&filter)?;
+                        let time_series = time.filter(&filter)?;
 
-                        let time: Vec<f32> = time
+                        let time: Vec<f32> = time_series
                             .cast(&DataType::Float32)?
                             .f32()?
                             .into_no_null_iter()
@@ -83,28 +86,25 @@ pub fn analyze_dump(
                         let time_normalized: Vec<f32> =
                             time.iter().map(|t| (t - first) / (last - first)).collect();
 
+                        // Fetch data series.
+                        let x_series = df.column("x")?.filter(&filter)?.cast(&DataType::Float32)?;
+                        let y_series = df.column("y")?.filter(&filter)?.cast(&DataType::Float32)?;
+                        let z_series = df.column("z")?.filter(&filter)?.cast(&DataType::Float32)?;
+
+                        // Join the data frames.
+                        join_datasets(
+                            &mut combined,
+                            &label,
+                            host_time,
+                            &x_series,
+                            &y_series,
+                            &z_series,
+                        )?;
+
                         // Fetch the axis values.
-                        let x: Vec<f32> = df
-                            .column("x")?
-                            .filter(&filter)?
-                            .cast(&DataType::Float32)?
-                            .f32()?
-                            .into_no_null_iter()
-                            .collect();
-                        let y: Vec<f32> = df
-                            .column("y")?
-                            .filter(&filter)?
-                            .cast(&DataType::Float32)?
-                            .f32()?
-                            .into_no_null_iter()
-                            .collect();
-                        let z: Vec<f32> = df
-                            .column("z")?
-                            .filter(&filter)?
-                            .cast(&DataType::Float32)?
-                            .f32()?
-                            .into_no_null_iter()
-                            .collect();
+                        let x: Vec<f32> = x_series.f32()?.into_no_null_iter().collect();
+                        let y: Vec<f32> = y_series.f32()?.into_no_null_iter().collect();
+                        let z: Vec<f32> = z_series.f32()?.into_no_null_iter().collect();
 
                         // Min and max ranges.
                         let x_min = x
@@ -352,6 +352,59 @@ pub fn analyze_dump(
                 }
             }
             Err(e) => eprintln!("Failed to read path: {:?}", e),
+        }
+    }
+    Ok(())
+}
+
+fn join_datasets(
+    combined: &mut Option<DataFrame>,
+    label: &String,
+    host_time: Series,
+    x_series: &Series,
+    y_series: &Series,
+    z_series: &Series,
+) -> color_eyre::Result<()> {
+    match combined {
+        None => {
+            let mut x_series = x_series.clone();
+            let mut y_series = y_series.clone();
+            let mut z_series = z_series.clone();
+            x_series.rename(&format!("X {label}"));
+            y_series.rename(&format!("Y {label}"));
+            z_series.rename(&format!("Z {label}"));
+            let df = DataFrame::new(vec![host_time, x_series, y_series, z_series])?;
+            let df = df.sort(
+                ["host_time"],
+                SortMultipleOptions::default().with_maintain_order(true),
+            )?;
+            *combined = Some(df);
+        }
+        Some(previous) => {
+            let mut x_series = x_series.clone();
+            let mut y_series = y_series.clone();
+            let mut z_series = z_series.clone();
+            x_series.rename(&format!("X {label}"));
+            y_series.rename(&format!("Y {label}"));
+            z_series.rename(&format!("Z {label}"));
+            let df = DataFrame::new(vec![host_time, x_series, y_series, z_series])?;
+            let df = df.sort(
+                ["host_time"],
+                SortMultipleOptions::default().with_maintain_order(true),
+            )?;
+
+            let options = AsOfOptions {
+                strategy: AsofStrategy::Backward,
+                ..Default::default()
+            };
+
+            let new = previous.join(
+                &df,
+                ["host_time"],
+                ["host_time"],
+                JoinArgs::new(JoinType::AsOf(options)),
+            )?;
+            *combined = Some(new);
         }
     }
     Ok(())

@@ -26,3 +26,14 @@ By using the optional `--raw /path/to/file.bin` argument, the raw data stream ca
 ```shell
 cargo run -- dump --port /dev/ttyACM0 --raw stream.raw --dir dump/
 ```
+
+## Analyzing data dumps
+
+To analyze data dumps, use the `analyze-dump` command. To run it with the test data, use e.g.
+
+```shell
+cargo run --no-default-features --features=analyze -- analyze-dump \
+  --dir test/2024-07-06/stm32f3discovery \
+  --output test/2024-07-06/stm32f3discovery/output/ \
+  --from 10 --to 25
+```
