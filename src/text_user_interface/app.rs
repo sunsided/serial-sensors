@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::components::sensors::Sensors;
-use crate::components::streaming::StreamingLog;
-use crate::data_buffer::SensorDataBuffer;
-use crate::tui::Tui;
-use crate::{
+use super::components::sensors::Sensors;
+use super::components::streaming::StreamingLog;
+use super::data_buffer::SensorDataBuffer;
+use super::tui::Tui;
+use super::{
     action::Action,
     components::{fps::FpsDisplay, Component},
     config::Config,

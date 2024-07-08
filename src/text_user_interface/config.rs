@@ -4,7 +4,7 @@ use color_eyre::eyre::Result;
 use serde::Deserialize;
 
 #[allow(dead_code)]
-const CONFIG: &str = include_str!("../.config/config.json5");
+const CONFIG: &str = include_str!("../../.config/config.json5");
 
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct AppConfig {

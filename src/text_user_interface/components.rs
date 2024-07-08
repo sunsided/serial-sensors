@@ -4,7 +4,7 @@ use ratatui::layout::Rect;
 use ratatui::Frame;
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{action::Action, config::Config, tui::Event};
+use super::{action::Action, config::Config, tui::Event};
 
 pub mod fps;
 pub mod sensors;

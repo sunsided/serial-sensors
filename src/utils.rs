@@ -5,6 +5,7 @@ use color_eyre::config::PanicHook;
 use color_eyre::eyre::Result;
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
+#[cfg(feature = "tui")]
 use tracing::error;
 use tracing_error::ErrorLayer;
 use tracing_subscriber::{
@@ -45,6 +46,7 @@ fn project_directory() -> Option<ProjectDirs> {
 ///
 /// The panic will be written via [`log::error`], so it will end up in the
 /// directory configured by [`initialize_logging`].
+#[cfg(feature = "tui")]
 pub fn initialize_panic_handler() -> Result<()> {
     let (panic_hook, eyre_hook) = color_eyre::config::HookBuilder::default()
         .panic_section(format!(
@@ -57,7 +59,7 @@ pub fn initialize_panic_handler() -> Result<()> {
         .into_hooks();
     eyre_hook.install()?;
     std::panic::set_hook(Box::new(move |panic_info| {
-        if let Ok(mut t) = crate::tui::Tui::new() {
+        if let Ok(mut t) = crate::text_user_interface::Tui::new() {
             if let Err(r) = t.exit() {
                 error!("Unable to exit Terminal: {:?}", r);
             }

@@ -4,7 +4,7 @@ use ratatui::prelude::*;
 use serial_sensors_proto::versions::Version1DataFrame;
 use serial_sensors_proto::{IdentifierCode, ScalarData, SensorData, SensorId, Vector3Data};
 
-use crate::data_buffer::SensorDataBuffer;
+use crate::text_user_interface::data_buffer::SensorDataBuffer;
 
 pub fn axis_to_span<'a, V>(value: V, highlight: Max) -> Span<'a>
 where

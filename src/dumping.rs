@@ -75,7 +75,7 @@ pub async fn dump_data(
                 ranges.get(&target.clone())
             };
 
-            let data_row = match create_data_row(since_the_epoch, &target, &data, ranges) {
+            let data_row = match create_data_row(since_the_epoch, &target, &sdt, &data, ranges) {
                 None => continue,
                 Some(data) => data,
             };
@@ -134,7 +134,8 @@ fn map_data(data: &SensorData) -> SensorDataType {
 }
 
 fn create_header_row(data: &Version1DataFrame) -> Option<Vec<u8>> {
-    let mut row = String::from("host_time,device_time,sensor_tag,num_components,value_type");
+    let mut row =
+        String::from("host_time,device_time,sensor_tag,sensor_type,num_components,value_type");
     match data.value {
         SensorData::SystemClockFrequency(_) => row.push_str(",freq"),
         SensorData::AccelerometerI16(_) => row.push_str(",x,y,z,converted_x,converted_y,converted_z"),
@@ -154,15 +155,17 @@ fn create_header_row(data: &Version1DataFrame) -> Option<Vec<u8>> {
 fn create_data_row(
     since_the_epoch: Duration,
     target: &SensorId,
+    sdt: &SensorDataType,
     data: &Version1DataFrame,
     ranges: Option<&LinearRangeInfo>,
 ) -> Option<Vec<u8>> {
     let device_time = decode_device_time(data);
     let mut row = format!(
-        "{},{},{:02X},{},{},",
+        "{},{},{:02X},{},{},{},",
         since_the_epoch.as_secs_f64(),
         device_time,
         target.tag(),
+        sdt.0,
         target.num_components().unwrap_or(0),
         value_type_code(target.value_type())
     );
@@ -217,16 +220,16 @@ fn create_data_row(
     Some(row.as_bytes().into())
 }
 
-fn decode_device_time(data: &Version1DataFrame) -> f32 {
+fn decode_device_time(data: &Version1DataFrame) -> f64 {
     if data.system_secs != u32::MAX {
-        data.system_secs as f32
+        data.system_secs as f64
             + if data.system_millis != u16::MAX {
-                data.system_millis as f32 / 1_000.0
+                data.system_millis as f64 / 1_000.0
             } else {
                 0.0
             }
             + if data.system_nanos != u16::MAX {
-                data.system_nanos as f32 / 1_000_000.0
+                data.system_nanos as f64 / 1_000_000.0
             } else {
                 0.0
             }
