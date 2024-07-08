@@ -8,7 +8,7 @@ use polars::prelude::*;
 
 pub fn analyze_dump(
     input: PathBuf,
-    _output: PathBuf,
+    output: PathBuf,
     from: f64,
     to: Option<f64>,
 ) -> color_eyre::Result<()> {
@@ -26,7 +26,8 @@ pub fn analyze_dump(
                         || file_name.contains("gyro")
                     {
                         println!("Processing {file_name}");
-                        let out_file_name = format!("{}.bmp", path.display());
+                        let output_file = output.join(format!("{file_name}.bmp"));
+                        let out_file_name = format!("{}", output_file.display());
 
                         // Read the CSV file using Polars
                         let df = CsvReadOptions::default()
@@ -60,8 +61,6 @@ pub fn analyze_dump(
 
                         let time_normalized: Vec<f32> =
                             time.iter().map(|t| (t - first) / (last - first)).collect();
-
-                        println!("{}", time[0]);
 
                         // Fetch the axis values.
                         let x: Vec<f32> = df
