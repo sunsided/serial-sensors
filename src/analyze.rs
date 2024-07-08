@@ -4,8 +4,10 @@ use std::path::PathBuf;
 use colorgrad::Gradient;
 use glob::glob;
 use itertools::izip;
+use ndarray_stats::CorrelationExt;
 use plotters::coord::Shift;
 use plotters::prelude::*;
+use plotters::style::text_anchor::{HPos, Pos, VPos};
 use polars::prelude::*;
 
 pub fn analyze_dump(
@@ -357,10 +359,101 @@ pub fn analyze_dump(
     }
 
     if let Some(combined) = &mut combined {
-        let output_file = output.join("joined.csv");
-        let file = File::create(output_file)?;
-        CsvWriter::new(file).include_header(true).finish(combined)?;
+        save_combined_to_csv(&output, combined)?;
+        plot_cross_correlation(&output, combined)?;
     }
+
+    Ok(())
+}
+
+fn plot_cross_correlation(
+    output: &std::path::Path,
+    combined: &mut DataFrame,
+) -> color_eyre::Result<()> {
+    println!("Calculating cross-correlation ...");
+    let array = combined
+        .drop("host_time")?
+        .to_ndarray::<Float32Type>(IndexOrder::C)?
+        .reversed_axes();
+    let xcorr_matrix = array.pearson_correlation().unwrap();
+    println!("{xcorr_matrix}");
+    println!("{} x {}", xcorr_matrix.nrows(), xcorr_matrix.ncols());
+
+    let output_file = format!("{}", output.join("cross-correlation.bmp").display());
+    println!("Plotting cross-correlation to {output_file}");
+
+    let count = xcorr_matrix.nrows();
+
+    let root = BitMapBackend::new(&output_file, (1024, 1024)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption("Sensor Cross-Correlation", ("sans-serif", 40))
+        .margin(5)
+        .top_x_label_area_size(40)
+        .y_label_area_size(40)
+        .build_cartesian_2d(0.0..(count as f32), 0.0..(count as f32))?;
+
+    chart
+        .configure_mesh()
+        .x_labels(count)
+        .y_labels(count)
+        .max_light_lines(4)
+        .x_label_offset(35)
+        .y_label_offset(25)
+        .disable_x_mesh()
+        .disable_y_mesh()
+        .label_style(("sans-serif", 20))
+        .draw()?;
+
+    let gradient = &colorgrad::viridis();
+
+    let matrix = &xcorr_matrix;
+    chart.draw_series((0..count).flat_map(|row| {
+        (0..count).map(move |col| {
+            let value = matrix[(row, col)];
+            let color = colormap((value + 1.0) * 0.5, gradient);
+            Rectangle::new(
+                [
+                    (col as f32, count as f32 - row as f32 - 1.0),
+                    (col as f32 + 1.0, count as f32 - row as f32),
+                ],
+                ShapeStyle {
+                    color: color.to_rgba(),
+                    filled: true,
+                    stroke_width: 1,
+                },
+            )
+        })
+    }))?;
+
+    chart.draw_series((0..count).flat_map(|row| {
+        (0..count).map(move |col| {
+            let value = matrix[(row, col)];
+            let text = Text::new(
+                format!("{:.2}", value),
+                (col as f32 + 0.5, count as f32 - row as f32 - 0.5),
+                ("sans-serif", 24.0)
+                    .into_font()
+                    .color(&BLACK)
+                    .pos(Pos::new(HPos::Center, VPos::Center)),
+            );
+            text
+        })
+    }))?;
+
+    root.present()?;
+    Ok(())
+}
+
+fn save_combined_to_csv(
+    output: &std::path::Path,
+    combined: &mut DataFrame,
+) -> color_eyre::Result<()> {
+    let output_file = output.join("joined.csv");
+    println!("Saving joined data frame to {}", output_file.display());
+    let file = File::create(output_file)?;
+    CsvWriter::new(file).include_header(true).finish(combined)?;
     Ok(())
 }
 
