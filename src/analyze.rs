@@ -376,8 +376,6 @@ fn plot_cross_correlation(
         .to_ndarray::<Float32Type>(IndexOrder::C)?
         .reversed_axes();
     let xcorr_matrix = array.pearson_correlation().unwrap();
-    println!("{xcorr_matrix}");
-    println!("{} x {}", xcorr_matrix.nrows(), xcorr_matrix.ncols());
 
     let output_file = format!("{}", output.join("cross-correlation.bmp").display());
     println!("Plotting cross-correlation to {output_file}");
@@ -391,7 +389,8 @@ fn plot_cross_correlation(
     let mut chart = ChartBuilder::on(&root)
         .caption("Sensor Cross-Correlation", ("sans-serif", 40))
         .margin(10)
-        .top_x_label_area_size(256)
+        // .top_x_label_area_size(256)
+        .x_label_area_size(224)
         .y_label_area_size(256)
         .build_cartesian_2d(0.0..(count as f32), 0.0..(count as f32))?;
 
@@ -412,9 +411,9 @@ fn plot_cross_correlation(
         .x_label_style(
             ("sans-serif", 20)
                 .into_font()
-                .transform(FontTransform::Rotate270)
                 .color(&BLACK)
-                .pos(Pos::new(HPos::Right, VPos::Bottom)),
+                .pos(Pos::new(HPos::Right, VPos::Top))
+                .transform(FontTransform::Rotate270),
         )
         .y_label_style(("sans-serif", 20).into_font())
         .max_light_lines(0)
