@@ -1654,6 +1654,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ndarray"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "087ee1ca8a7c22830c2bba4a96ed8e72ce0968ae944349324d52522f66aa3944"
+dependencies = [
+ "matrixmultiply",
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "portable-atomic",
+ "portable-atomic-util",
+ "rawpointer",
+]
+
+[[package]]
 name = "ndarray-stats"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1661,7 +1676,7 @@ checksum = "af5a8477ac96877b5bd1fd67e0c28736c12943aba24eda92b127e036b0c8f400"
 dependencies = [
  "indexmap 1.9.3",
  "itertools 0.10.5",
- "ndarray",
+ "ndarray 0.15.6",
  "noisy_float",
  "num-integer",
  "num-traits",
@@ -2163,7 +2178,7 @@ dependencies = [
  "either",
  "hashbrown 0.14.5",
  "indexmap 2.2.6",
- "ndarray",
+ "ndarray 0.15.6",
  "num-traits",
  "once_cell",
  "polars-arrow",
@@ -2460,6 +2475,21 @@ dependencies = [
  "stacker",
  "sysinfo",
  "version_check",
+]
+
+[[package]]
+name = "portable-atomic"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da544ee218f0d287a911e9c99a39a8c9bc8fcad3cb8db5959940044ecfc67265"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcdd8420072e66d54a407b3316991fe946ce3ab1083a7f575b2463866624704d"
+dependencies = [
+ "portable-atomic",
 ]
 
 [[package]]
@@ -2831,7 +2861,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
- "ndarray",
+ "ndarray 0.16.0",
  "ndarray-stats",
  "num-traits",
  "plotters",
