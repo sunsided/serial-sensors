@@ -469,6 +469,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "compact_str"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6050c3a16ddab2e412160b31f2c871015704239bca62f72f6e5f0be631d3f644"
+dependencies = [
+ "castaway",
+ "cfg-if",
+ "itoa",
+ "rustversion",
+ "ryu",
+ "static_assertions",
+]
+
+[[package]]
 name = "config"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1319,6 +1333,16 @@ checksum = "168fb715dda47215e360912c096649d23d58bf392ac62f73919e831745e40f26"
 dependencies = [
  "equivalent",
  "hashbrown 0.14.5",
+]
+
+[[package]]
+name = "instability"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b23a0c8dfe501baac4adf6ebbfa6eddf8f0c07f56b058cc1288017e32397846c"
+dependencies = [
+ "quote",
+ "syn 2.0.68",
 ]
 
 [[package]]
@@ -2583,12 +2607,33 @@ checksum = "d16546c5b5962abf8ce6e2881e722b4e0ae3b6f1a08a26ae3573c55853ca68d3"
 dependencies = [
  "bitflags 2.6.0",
  "cassowary",
- "compact_str",
+ "compact_str 0.7.1",
  "crossterm 0.27.0",
  "itertools 0.13.0",
  "lru",
  "paste",
  "stability",
+ "strum",
+ "strum_macros",
+ "unicode-segmentation",
+ "unicode-truncate",
+ "unicode-width",
+]
+
+[[package]]
+name = "ratatui"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ba6a365afbe5615999275bea2446b970b10a41102500e27ce7678d50d978303"
+dependencies = [
+ "bitflags 2.6.0",
+ "cassowary",
+ "compact_str 0.8.0",
+ "crossterm 0.28.1",
+ "instability",
+ "itertools 0.13.0",
+ "lru",
+ "paste",
  "strum",
  "strum_macros",
  "unicode-segmentation",
@@ -2867,7 +2912,7 @@ dependencies = [
  "plotters",
  "polars",
  "pretty_assertions",
- "ratatui",
+ "ratatui 0.27.0",
  "serde",
  "serde_json",
  "serial-sensors-proto",
@@ -3377,11 +3422,11 @@ checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
 
 [[package]]
 name = "tui-input"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b02e86628a225c39b2602863f244a01668184149928ceb410e47a8022d7597e"
+checksum = "68699e8bb4ca025ab41fcc602d3d53a5714a56b0cf2d6e93c98aaf4231e3d937"
 dependencies = [
- "crossterm 0.27.0",
+ "ratatui 0.28.0",
  "serde",
  "unicode-width",
 ]
