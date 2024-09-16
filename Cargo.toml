@@ -20,7 +20,7 @@ color-eyre = "0.6.3"
 crossterm = { version = "0.28.1", features = ["event-stream", "serde"] }
 futures = "0.3.30"
 log = "0.4.22"
-ratatui = { version = "0.28.0", optional = true }
+ratatui = { version = "0.28.1", optional = true }
 serde = { version = "1.0.210", features = ["derive"] }
 serial-sensors-proto = { version = "0.4.0", features = ["std", "alloc", "unsafe", "quaternion", "micromath"], optional = true }
 signal-hook = "0.3.17"
