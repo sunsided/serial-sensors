@@ -15,7 +15,7 @@ analyze = ["dep:polars", "dep:glob", "dep:plotters", "dep:itertools", "dep:color
 serial = ["dep:tokio-serial", "dep:serial-sensors-proto"]
 
 [dependencies]
-clap = { version = "4.5.20", features = ["cargo", "color", "derive", "env", "string", "suggestions", "usage"] }
+clap = { version = "4.5.21", features = ["cargo", "color", "derive", "env", "string", "suggestions", "usage"] }
 color-eyre = "0.6.3"
 crossterm = { version = "0.28.1", features = ["event-stream", "serde"] }
 futures = "0.3.30"
